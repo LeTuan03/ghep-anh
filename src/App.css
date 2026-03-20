@@ -218,6 +218,72 @@ button {
   text-shadow: 0 1px 3px #000; 
 }
 
+.sections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.section-box {
+  background: rgba(13, 17, 23, 0.4);
+  border: 1px solid rgba(0, 240, 255, 0.1);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--cyan);
+  font-weight: 800;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+}
+
+.dz-mini {
+  padding: 16px !important;
+  margin-bottom: 12px !important;
+  border-width: 1.5px !important;
+}
+
+.dz-mini p {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 2px 0;
+}
+
+.dz-mini .ico {
+  margin-bottom: 4px !important;
+}
+
+.logout-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  background: rgba(255, 45, 120, 0.1);
+  color: var(--pink);
+  border: 1px solid rgba(255, 45, 120, 0.3);
+  border-radius: 6px;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 45, 120, 0.2);
+}
+
+header {
+  position: relative;
+  text-align: center;
+  padding: 32px 20px;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.1);
+  margin-bottom: 20px;
+}
+
 .prev { 
   background: var(--panel); 
   border: 1px solid var(--border); 
@@ -253,3 +319,47 @@ canvas {
   font-size: 0.84rem; 
   padding: 24px; 
 }
+
+.opts-group {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 20px;
+}
+.opts-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--cyan);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  letter-spacing: 1.5px;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.15);
+  padding-bottom: 8px;
+}
+.opts-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.opts-row.split-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.opts-col {
+  background: rgba(13, 17, 23, 0.5);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.opts-col h4 {
+  font-size: 0.75rem;
+  color: #aeb5cc;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.opts-row .cg {
+  flex: 1 1 120px;
+}
+
