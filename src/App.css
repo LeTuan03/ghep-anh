@@ -42,7 +42,7 @@ header h1 {
   font-weight: 900;
   letter-spacing: 2px; 
   text-transform: uppercase;
-  background: linear-gradient(135deg, var(--cyan), var(--pink));
+  background: var(--pink);
   -webkit-background-clip: text; 
   -webkit-text-fill-color: transparent; 
   background-clip: text;
@@ -156,9 +156,9 @@ button {
 
 .b-up { background: linear-gradient(135deg, var(--cyan), #0080ff); color: #000; box-shadow: 0 0 16px rgba(0,240,255,0.3); }
 .b-up:hover { transform: translateY(-2px); }
-.b-go { background: linear-gradient(135deg, var(--pink), var(--purple)); color: #fff; }
+.b-go { background: var(--purple); color: #fff; }
 .b-go:hover { transform: translateY(-2px); }
-.b-dl { background: linear-gradient(135deg, #1a8c3a, #2eff7e); color: #000; }
+.b-dl { background: #27de6d; color: #000; }
 .b-dl:hover:not(:disabled) { transform: translateY(-2px); }
 .b-dl:disabled { opacity: 0.35; cursor: default; transform: none; }
 .b-cl { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--sub); }

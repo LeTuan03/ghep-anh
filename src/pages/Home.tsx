@@ -346,7 +346,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         </div>
 
         <div className="opts-group">
-          <div className="opts-title">⚙️ THÔNG SỐ CANVAS TỔNG THỂ</div>
+          <div className="opts-title">THÔNG SỐ CANVAS TỔNG THỂ</div>
           <div className="opts-row">
             <div className="cg"><label>Chiều Rộng (px)</label><input type="number" value={canvasW} min={400} max={8000} onChange={e => setCanvasW(Number(e.target.value) || 1920)}/></div>
             <div className="cg"><label>Thưa giữa các Phần</label><input type="number" value={gap} min={0} max={100} onChange={e => setGap(Number(e.target.value) || 0)}/></div>
@@ -382,7 +382,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         </div>
 
         <div className="opts-group">
-          <div className="opts-title">📊 CHI TIẾT CÁC PHẦN (TỰ ĐỘNG CHIA RỘNG THEO CANVAS)</div>
+          <div className="opts-title">CHI TIẾT CÁC PHẦN (TỰ ĐỘNG CHIA RỘNG THEO CANVAS)</div>
           <div className="opts-row split-3">
             <div className="opts-col">
               <h4>1. Phần Đầu (Trên)</h4>
