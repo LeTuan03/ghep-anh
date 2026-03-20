@@ -22,14 +22,14 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   // Settings layout khít 100% bề ngang
   const [canvasW, setCanvasW] = useState(1920);
   
-  const [headCols, setHeadCols] = useState(10);
-  const [headRatio, setHeadRatio] = useState(0.48); // (H/W) Khung hình ngang (rộng hơn cao)
+  const [headCols, setHeadCols] = useState(1);
+  const [headRatio, setHeadRatio] = useState(0); // 0 = Auto
   
   const [midCols, setMidCols] = useState(1);
-  const [midRatio, setMidRatio] = useState(0); // 0 = scale tự động theo gốc
+  const [midRatio, setMidRatio] = useState(0); // 0 = Auto
   
-  const [footCols, setFootCols] = useState(21);
-  const [footRatio, setFootRatio] = useState(1.23); // (H/W) Khung hình dọc (cao hơn rộng)
+  const [footCols, setFootCols] = useState(1);
+  const [footRatio, setFootRatio] = useState(0); // 0 = Auto
   
   const [gap, setGap] = useState(0);
   const [rad, setRad] = useState(0);
@@ -102,66 +102,54 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     const w = canvasW;
     const aw = w - pad * 2; // Vùng khả dụng chiều ngang sau khi trừ pad
 
-    // HEAD
+    const computeSection = (sectionItems: ImageData[], cols: number, ratio: number, itemW: number) => {
+      const rows = Math.ceil(sectionItems.length / cols);
+      let blockH = 0;
+      const rowHeights: number[] = [];
+      for (let r = 0; r < rows; r++) {
+        let rowH = 0;
+        if (ratio > 0) {
+          rowH = itemW * ratio;
+        } else {
+           for (let c = 0; c < cols; c++) {
+              const idx = r * cols + c;
+              if (idx < sectionItems.length && sectionItems[idx].imgElement) {
+                 const img = sectionItems[idx].imgElement!;
+                 const h = itemW * (img.naturalHeight / img.naturalWidth);
+                 if (h > rowH) rowH = h;
+              }
+           }
+           if (rowH === 0) rowH = itemW;
+        }
+        rowHeights.push(rowH);
+        blockH += rowH;
+      }
+      if (rows > 0) blockH += (rows - 1) * gap;
+      return { rows, rowHeights, blockH, cols };
+    };
+
     const headC = Math.max(1, headCols);
     const hw = (aw - gap * (headC - 1)) / headC;
-    const hh = hw * headRatio;
+    const headLayout = computeSection(header, headC, headRatio, hw);
 
-    // MID
     const midC = Math.max(1, midCols);
     const mw = (aw - gap * (midC - 1)) / midC;
+    const midLayout = computeSection(middle, midC, midRatio, mw);
 
-    // FOOT
     const footC = Math.max(1, footCols);
     const fw = (aw - gap * (footC - 1)) / footC;
-    const fh = fw * footRatio;
+    const footLayout = computeSection(footer, footC, footRatio, fw);
 
     // TÍNH TỔNG CHIỀU CAO CANVAS
     let totalH = pad * 2;
-    
-    let headBlockH = 0;
-    const headRows = Math.ceil(header.length / headC);
-    if (headRows > 0) headBlockH = headRows * hh + (headRows - 1) * gap;
-
-    let midBlockH = 0;
-    const midRows = Math.ceil(middle.length / midC);
-    const midRowHeights: number[] = [];
-    if (midRows > 0) {
-      for (let r = 0; r < midRows; r++) {
-        let rowH = 0;
-        if (midRatio > 0) {
-          rowH = mw * midRatio; // Fix ratio
-        } else {
-          // Auto scale ratio theo ảnh
-          for (let c = 0; c < midC; c++) {
-            const idx = r * midC + c;
-            if (idx < middle.length && middle[idx].imgElement) {
-              const img = middle[idx].imgElement!;
-              const cellH = mw * (img.naturalHeight / img.naturalWidth);
-              if (cellH > rowH) rowH = cellH;
-            }
-          }
-          if (rowH === 0) rowH = mw; // safety fallback
-        }
-        midRowHeights.push(rowH);
-        midBlockH += rowH;
-      }
-      midBlockH += Math.max(0, midRows - 1) * gap;
+    if (headLayout.blockH > 0) totalH += headLayout.blockH;
+    if (midLayout.blockH > 0) {
+      if (headLayout.blockH > 0) totalH += gap;
+      totalH += midLayout.blockH;
     }
-
-    let footBlockH = 0;
-    const footRows = Math.ceil(footer.length / footC);
-    if (footRows > 0) footBlockH = footRows * fh + (footRows - 1) * gap;
-
-    // Cộng các Block và khoảng cách Block
-    if (headBlockH > 0) totalH += headBlockH;
-    if (midBlockH > 0) {
-      if (headBlockH > 0) totalH += gap * 2; // khoảng cách rời rạc giữa Khung Đầu và Giữa
-      totalH += midBlockH;
-    }
-    if (footBlockH > 0) {
-      if (headBlockH > 0 || midBlockH > 0) totalH += gap * 2; // khoảng rớt cho Khung Cuối
-      totalH += footBlockH;
+    if (footLayout.blockH > 0) {
+      if (headLayout.blockH > 0 || midLayout.blockH > 0) totalH += gap;
+      totalH += footLayout.blockH;
     }
 
     // UPDATE CANVAS SIZE
@@ -179,46 +167,26 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
     let currentY = pad;
 
-    // VẼ PHẦN ĐẦU
-    if (header.length > 0) {
-      header.forEach((item, idx) => {
-        const col = idx % headC;
-        const row = Math.floor(idx / headC);
-        const x = pad + col * (hw + gap);
-        const y = currentY + row * (hh + gap);
-        drawItem(ctx, item.imgElement, x, y, hw, hh, rad, fit);
-      });
-      currentY += headBlockH + gap * 2;
-    }
-
-    // VẼ PHẦN GIỮA
-    if (middle.length > 0) {
+    const drawGrid = (items: ImageData[], layout: {rows: number, rowHeights: number[], cols: number, blockH: number}, cW: number, ratio: number) => {
       let my = currentY;
-      for (let r = 0; r < midRows; r++) {
-        const rh = midRowHeights[r];
-        for (let c = 0; c < midC; c++) {
-           const idx = r * midC + c;
-           if (idx < middle.length) {
-              const x = pad + c * (mw + gap);
+      for (let r = 0; r < layout.rows; r++) {
+        const rh = layout.rowHeights[r];
+        for (let c = 0; c < layout.cols; c++) {
+           const idx = r * layout.cols + c;
+           if (idx < items.length) {
+              const x = pad + c * (cW + gap);
               const y = my;
-              drawItem(ctx, middle[idx].imgElement, x, y, mw, rh, rad, midRatio === 0 ? 'stretch' : fit);
+              drawItem(ctx, items[idx].imgElement, x, y, cW, rh, rad, ratio === 0 ? 'stretch' : fit);
            }
         }
         my += rh + gap;
       }
-      currentY += midBlockH + gap * 2;
-    }
+      currentY += layout.blockH + gap;
+    };
 
-    // VẼ PHẦN CUỐI
-    if (footer.length > 0) {
-      footer.forEach((item, idx) => {
-        const col = idx % footC;
-        const row = Math.floor(idx / footC);
-        const x = pad + col * (fw + gap);
-        const y = currentY + row * (fh + gap);
-        drawItem(ctx, item.imgElement, x, y, fw, fh, rad, fit);
-      });
-    }
+    if (header.length > 0) drawGrid(header, headLayout, hw, headRatio);
+    if (middle.length > 0) drawGrid(middle, midLayout, mw, midRatio);
+    if (footer.length > 0) drawGrid(footer, footLayout, fw, footRatio);
 
     setHasRendered(true);
   };
@@ -387,8 +355,8 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
             <div className="opts-col">
               <h4>1. Phần Đầu (Trên)</h4>
               <div className="cg"><label>Số Cột</label><input type="number" value={headCols} min={1} max={50} onChange={e => setHeadCols(Number(e.target.value) || 1)}/></div>
-              <div className="cg"><label>Tỷ lệ H / W (Cao/Ngang)</label><input type="number" step="0.05" value={headRatio} onChange={e => setHeadRatio(Number(e.target.value) || 0.1)}/>
-                <small style={{color:'var(--cyan)', fontSize:'10px', marginTop:'4px'}}>+ Mặc định: 0.48 (H ngang)</small>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={headRatio} onChange={e => setHeadRatio(Number(e.target.value))}/>
+                <small style={{color:'var(--cyan)', fontSize:'10px', marginTop:'4px'}}>+ Chọn 0 để tự động fit ngang</small>
               </div>
             </div>
             
@@ -396,15 +364,15 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
               <h4>2. Phần Giữa (Info)</h4>
               <div className="cg"><label>Số Cột</label><input type="number" value={midCols} min={1} max={50} onChange={e => setMidCols(Number(e.target.value) || 1)}/></div>
               <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={midRatio} onChange={e => setMidRatio(Number(e.target.value))}/>
-                 <small style={{color:'var(--sub)', fontSize:'10px', marginTop:'4px'}}>+ (0) Tự scale chiều cao theo ảnh</small>
+                 <small style={{color:'var(--sub)', fontSize:'10px', marginTop:'4px'}}>+ Chọn 0 để tự động fit ngang</small>
               </div>
             </div>
             
             <div className="opts-col">
               <h4>3. Phần Cuối (Dưới)</h4>
               <div className="cg"><label>Số Cột</label><input type="number" value={footCols} min={1} max={50} onChange={e => setFootCols(Number(e.target.value) || 1)}/></div>
-              <div className="cg"><label>Tỷ lệ H / W (Cao/Ngang)</label><input type="number" step="0.05" value={footRatio} onChange={e => setFootRatio(Number(e.target.value) || 0.1)}/>
-                <small style={{color:'var(--pink)', fontSize:'10px', marginTop:'4px'}}>+ Mặc định: 1.23 (H đứng)</small>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={footRatio} onChange={e => setFootRatio(Number(e.target.value))}/>
+                <small style={{color:'var(--pink)', fontSize:'10px', marginTop:'4px'}}>+ Chọn 0 để tự động fit ngang</small>
               </div>
             </div>
           </div>
