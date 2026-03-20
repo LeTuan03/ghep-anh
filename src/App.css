@@ -55,7 +55,7 @@ header p {
 }
 
 .wrap { 
-  max-width: 1050px; 
+  /* max-width: 1050px;  */
   margin: 0 auto; 
   padding: 20px 14px; 
 }
@@ -360,6 +360,6 @@ canvas {
   text-transform: uppercase;
 }
 .opts-row .cg {
-  flex: 1 1 120px;
+  flex: 1 1 140px;
 }
 

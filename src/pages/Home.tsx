@@ -24,12 +24,18 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   
   const [headCols, setHeadCols] = useState(1);
   const [headRatio, setHeadRatio] = useState(0); // 0 = Auto
+  const [headPad, setHeadPad] = useState(0);
+  const [headGap, setHeadGap] = useState(0);
   
   const [midCols, setMidCols] = useState(1);
   const [midRatio, setMidRatio] = useState(0); // 0 = Auto
+  const [midPad, setMidPad] = useState(0);
+  const [midGap, setMidGap] = useState(0);
   
   const [footCols, setFootCols] = useState(1);
   const [footRatio, setFootRatio] = useState(0); // 0 = Auto
+  const [footPad, setFootPad] = useState(0);
+  const [footGap, setFootGap] = useState(0);
   
   const [gap, setGap] = useState(0);
   const [rad, setRad] = useState(0);
@@ -100,9 +106,8 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
     // === TÍNH TOÁN CÁC BỤC === //
     const w = canvasW;
-    const aw = w - pad * 2; // Vùng khả dụng chiều ngang sau khi trừ pad
 
-    const computeSection = (sectionItems: ImageData[], cols: number, ratio: number, itemW: number) => {
+    const computeSection = (sectionItems: ImageData[], cols: number, ratio: number, itemW: number, secGap: number) => {
       const rows = Math.ceil(sectionItems.length / cols);
       let blockH = 0;
       const rowHeights: number[] = [];
@@ -124,32 +129,35 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         rowHeights.push(rowH);
         blockH += rowH;
       }
-      if (rows > 0) blockH += (rows - 1) * gap;
+      if (rows > 0) blockH += (rows - 1) * secGap;
       return { rows, rowHeights, blockH, cols };
     };
 
     const headC = Math.max(1, headCols);
-    const hw = (aw - gap * (headC - 1)) / headC;
-    const headLayout = computeSection(header, headC, headRatio, hw);
+    const awHead = w - pad * 2 - headPad * 2;
+    const hw = (awHead - headGap * (headC - 1)) / headC;
+    const headLayout = computeSection(header, headC, headRatio, hw, headGap);
 
     const midC = Math.max(1, midCols);
-    const mw = (aw - gap * (midC - 1)) / midC;
-    const midLayout = computeSection(middle, midC, midRatio, mw);
+    const awMid = w - pad * 2 - midPad * 2;
+    const mw = (awMid - midGap * (midC - 1)) / midC;
+    const midLayout = computeSection(middle, midC, midRatio, mw, midGap);
 
     const footC = Math.max(1, footCols);
-    const fw = (aw - gap * (footC - 1)) / footC;
-    const footLayout = computeSection(footer, footC, footRatio, fw);
+    const awFoot = w - pad * 2 - footPad * 2;
+    const fw = (awFoot - footGap * (footC - 1)) / footC;
+    const footLayout = computeSection(footer, footC, footRatio, fw, footGap);
 
     // TÍNH TỔNG CHIỀU CAO CANVAS
     let totalH = pad * 2;
-    if (headLayout.blockH > 0) totalH += headLayout.blockH;
+    if (headLayout.blockH > 0) totalH += headLayout.blockH + headPad * 2;
     if (midLayout.blockH > 0) {
       if (headLayout.blockH > 0) totalH += gap;
-      totalH += midLayout.blockH;
+      totalH += midLayout.blockH + midPad * 2;
     }
     if (footLayout.blockH > 0) {
       if (headLayout.blockH > 0 || midLayout.blockH > 0) totalH += gap;
-      totalH += footLayout.blockH;
+      totalH += footLayout.blockH + footPad * 2;
     }
 
     // UPDATE CANVAS SIZE
@@ -167,26 +175,26 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
     let currentY = pad;
 
-    const drawGrid = (items: ImageData[], layout: {rows: number, rowHeights: number[], cols: number, blockH: number}, cW: number, ratio: number) => {
-      let my = currentY;
+    const drawGrid = (items: ImageData[], layout: {rows: number, rowHeights: number[], cols: number, blockH: number}, cW: number, ratio: number, secPad: number, secGap: number) => {
+      let my = currentY + secPad;
       for (let r = 0; r < layout.rows; r++) {
         const rh = layout.rowHeights[r];
         for (let c = 0; c < layout.cols; c++) {
            const idx = r * layout.cols + c;
            if (idx < items.length) {
-              const x = pad + c * (cW + gap);
+              const x = pad + secPad + c * (cW + secGap);
               const y = my;
               drawItem(ctx, items[idx].imgElement, x, y, cW, rh, rad, ratio === 0 ? 'stretch' : fit);
            }
         }
-        my += rh + gap;
+        my += rh + secGap;
       }
-      currentY += layout.blockH + gap;
+      currentY += layout.blockH + secPad * 2 + gap; // + gap (khoảng cách rời cho phần sau)
     };
 
-    if (header.length > 0) drawGrid(header, headLayout, hw, headRatio);
-    if (middle.length > 0) drawGrid(middle, midLayout, mw, midRatio);
-    if (footer.length > 0) drawGrid(footer, footLayout, fw, footRatio);
+    if (header.length > 0) drawGrid(header, headLayout, hw, headRatio, headPad, headGap);
+    if (middle.length > 0) drawGrid(middle, midLayout, mw, midRatio, midPad, midGap);
+    if (footer.length > 0) drawGrid(footer, footLayout, fw, footRatio, footPad, footGap);
 
     setHasRendered(true);
   };
@@ -326,9 +334,9 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
           <div className="opts-title">⚙️ THÔNG SỐ CANVAS TỔNG THỂ</div>
           <div className="opts-row">
             <div className="cg"><label>Chiều Rộng (px)</label><input type="number" value={canvasW} min={400} max={8000} onChange={e => setCanvasW(Number(e.target.value) || 1920)}/></div>
-            <div className="cg"><label>Khoảng cách ô</label><input type="number" value={gap} min={0} max={100} onChange={e => setGap(Number(e.target.value) || 0)}/></div>
-            <div className="cg"><label>Bo góc (px)</label><input type="number" value={rad} min={0} max={100} onChange={e => setRad(Number(e.target.value) || 0)}/></div>
-            <div className="cg"><label>Padding lề</label><input type="number" value={pad} min={0} max={100} onChange={e => setPad(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Thưa giữa các Phần</label><input type="number" value={gap} min={0} max={100} onChange={e => setGap(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Bo góc chung (px)</label><input type="number" value={rad} min={0} max={100} onChange={e => setRad(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Viền mép ngoài ảnh</label><input type="number" value={pad} min={0} max={100} onChange={e => setPad(Number(e.target.value) || 0)}/></div>
             <div className="cg"><label>Màu nền</label><input type="color" value={bgc} onChange={e => setBgc(e.target.value)}/></div>
             <div className="cg"><label>Màu viền tổng</label><input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)}/></div>
             <div className="cg"><label>Hiển thị ảnh</label>
@@ -355,25 +363,25 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
             <div className="opts-col">
               <h4>1. Phần Đầu (Trên)</h4>
               <div className="cg"><label>Số Cột</label><input type="number" value={headCols} min={1} max={50} onChange={e => setHeadCols(Number(e.target.value) || 1)}/></div>
-              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={headRatio} onChange={e => setHeadRatio(Number(e.target.value))}/>
-                <small style={{color:'var(--cyan)', fontSize:'10px', marginTop:'4px'}}>+ Chọn 0 để tự động fit ngang</small>
-              </div>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={headRatio} onChange={e => setHeadRatio(Number(e.target.value))}/></div>
+              <div className="cg"><label>Padding viền bao</label><input type="number" value={headPad} min={0} onChange={e => setHeadPad(Number(e.target.value) || 0)}/></div>
+              <div className="cg"><label>Khoảng cách các ảnh</label><input type="number" value={headGap} min={0} onChange={e => setHeadGap(Number(e.target.value) || 0)}/></div>
             </div>
             
             <div className="opts-col">
               <h4>2. Phần Giữa (Info)</h4>
               <div className="cg"><label>Số Cột</label><input type="number" value={midCols} min={1} max={50} onChange={e => setMidCols(Number(e.target.value) || 1)}/></div>
-              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={midRatio} onChange={e => setMidRatio(Number(e.target.value))}/>
-                 <small style={{color:'var(--sub)', fontSize:'10px', marginTop:'4px'}}>+ Chọn 0 để tự động fit ngang</small>
-              </div>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={midRatio} onChange={e => setMidRatio(Number(e.target.value))}/></div>
+              <div className="cg"><label>Padding viền bao</label><input type="number" value={midPad} min={0} onChange={e => setMidPad(Number(e.target.value) || 0)}/></div>
+              <div className="cg"><label>Khoảng cách các ảnh</label><input type="number" value={midGap} min={0} onChange={e => setMidGap(Number(e.target.value) || 0)}/></div>
             </div>
             
             <div className="opts-col">
               <h4>3. Phần Cuối (Dưới)</h4>
               <div className="cg"><label>Số Cột</label><input type="number" value={footCols} min={1} max={50} onChange={e => setFootCols(Number(e.target.value) || 1)}/></div>
-              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={footRatio} onChange={e => setFootRatio(Number(e.target.value))}/>
-                <small style={{color:'var(--pink)', fontSize:'10px', marginTop:'4px'}}>+ Chọn 0 để tự động fit ngang</small>
-              </div>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={footRatio} onChange={e => setFootRatio(Number(e.target.value))}/></div>
+              <div className="cg"><label>Padding viền bao</label><input type="number" value={footPad} min={0} onChange={e => setFootPad(Number(e.target.value) || 0)}/></div>
+              <div className="cg"><label>Khoảng cách các ảnh</label><input type="number" value={footGap} min={0} onChange={e => setFootGap(Number(e.target.value) || 0)}/></div>
             </div>
           </div>
         </div>
