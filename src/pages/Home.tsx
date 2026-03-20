@@ -40,9 +40,11 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const [gap, setGap] = useState(0);
   const [rad, setRad] = useState(0);
   const [bgc, setBgc] = useState('#0b1426'); // Xanh đậm của nền game Liên Quân
-  const [pad, setPad] = useState(0);
+  const [pad, setPad] = useState(5);
   const [fit, setFit] = useState<'cover' | 'contain' | 'stretch' | 'original'>('cover');
   const [borderColor, setBorderColor] = useState('#224c8a'); // Viền xanh xám
+  const [borderStyle, setBorderStyle] = useState<'solid' | 'gradient1'>('solid');
+  const [borderWidth, setBorderWidth] = useState(4);
   const [showDim, setShowDim] = useState(false);
   
   const [isDragOver, setIsDragOver] = useState<SectionKey | null>(null);
@@ -169,9 +171,23 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     ctx.fillRect(0, 0, w, totalH);
 
     // KẺ VIỀN CANVAS TO
-    ctx.strokeStyle = borderColor; 
-    ctx.lineWidth = 4;
-    ctx.strokeRect(2, 2, w - 4, totalH - 4);
+    if (borderWidth > 0) {
+      if (borderStyle === 'solid') {
+        ctx.strokeStyle = borderColor;
+      } else if (borderStyle === 'gradient1') {
+        const grad = ctx.createLinearGradient(0, 0, w, totalH);
+        grad.addColorStop(0, '#ff0cfa'); // Pink/Magenta
+        grad.addColorStop(1, '#00f6ff'); // Cyan
+        ctx.strokeStyle = grad;
+      }
+      
+      const bw = borderWidth;
+      ctx.lineWidth = bw;
+      
+      ctx.beginPath();
+      roundRectPath(ctx, bw / 2, bw / 2, w - bw, totalH - bw, rad);
+      ctx.stroke();
+    }
 
     let currentY = pad;
 
@@ -182,9 +198,17 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         for (let c = 0; c < layout.cols; c++) {
            const idx = r * layout.cols + c;
            if (idx < items.length) {
-              const x = pad + secPad + c * (cW + secGap);
-              const y = my;
-              drawItem(ctx, items[idx].imgElement, x, y, cW, rh, rad, ratio === 0 ? 'stretch' : fit);
+              const startX = pad + secPad + c * (cW + secGap);
+              const startY = my;
+              const endX = startX + cW;
+              const endY = my + rh;
+              
+              const x = Math.round(startX);
+              const y = Math.round(startY);
+              const w = Math.round(endX) - x;
+              const h = Math.round(endY) - y;
+
+              drawItem(ctx, items[idx].imgElement, x, y, w, h, rad, ratio === 0 ? 'stretch' : fit);
            }
         }
         my += rh + secGap;
@@ -202,10 +226,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const drawItem = (ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, x: number, y: number, w: number, h: number, r: number, drawFit: string) => {
     if (!img) return;
     ctx.save();
-    
-    // Viền item: vàng đất chìm
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.4)';
-    ctx.lineWidth = 1;
     
     roundRectPath(ctx, x, y, w, h, r);
     ctx.clip();
@@ -231,11 +251,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     }
     
     ctx.restore();
-    
-    // Nét bo góc
-    ctx.beginPath();
-    roundRectPath(ctx, x, y, w, h, r);
-    ctx.stroke();
 
     if (showDim) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -338,7 +353,16 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
             <div className="cg"><label>Bo góc chung (px)</label><input type="number" value={rad} min={0} max={100} onChange={e => setRad(Number(e.target.value) || 0)}/></div>
             <div className="cg"><label>Viền mép ngoài ảnh</label><input type="number" value={pad} min={0} max={100} onChange={e => setPad(Number(e.target.value) || 0)}/></div>
             <div className="cg"><label>Màu nền</label><input type="color" value={bgc} onChange={e => setBgc(e.target.value)}/></div>
-            <div className="cg"><label>Màu viền tổng</label><input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)}/></div>
+            <div className="cg"><label>Kiểu viền tổng</label>
+              <select value={borderStyle} onChange={e => setBorderStyle(e.target.value as any)}>
+                <option value="solid">Màu đơn sắc</option>
+                <option value="gradient1">Gradient (Hồng - Xanh)</option>
+              </select>
+            </div>
+            {borderStyle === 'solid' && (
+              <div className="cg"><label>Màu viền đơn</label><input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)}/></div>
+            )}
+            <div className="cg"><label>Độ dày viền (px)</label><input type="number" value={borderWidth} min={0} max={200} onChange={e => setBorderWidth(Number(e.target.value) || 0)}/></div>
             <div className="cg"><label>Hiển thị ảnh</label>
               <select value={fit} onChange={e => setFit(e.target.value as any)}>
                 <option value="cover">Cắt tỉ lệ (Cover)</option>
