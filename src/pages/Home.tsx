@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import type { DragEvent, ChangeEvent } from 'react';
-import { Image as ImageIcon, Trash2, Download, PlusCircle, RefreshCw } from 'lucide-react';
+import type { ChangeEvent } from 'react';
+import { Trash2, Download, RefreshCw, Layers } from 'lucide-react';
 import '../App.css';
 
 interface ImageData {
@@ -10,65 +10,63 @@ interface ImageData {
   imgElement: HTMLImageElement | null;
 }
 
+type SectionKey = 'header' | 'middle' | 'footer';
+
 export default function Home({ onLogout }: { onLogout?: () => void }) {
-  const [images, setImages] = useState<ImageData[]>([]);
-  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [sections, setSections] = useState<Record<SectionKey, ImageData[]>>({
+    header: [],
+    middle: [],
+    footer: []
+  });
   
-  const [cols, setCols] = useState(4);
-  const [csw, setCsw] = useState(160);
-  const [csh, setCsh] = useState(160);
-  const [gap, setGap] = useState(6);
-  const [rad, setRad] = useState(8);
-  const [bgc, setBgc] = useState('#06080f');
+  // Settings layout khít 100% bề ngang
+  const [canvasW, setCanvasW] = useState(1920);
+  
+  const [headCols, setHeadCols] = useState(1);
+  const [headRatio, setHeadRatio] = useState(0); // 0 = Auto
+  const [headPad, setHeadPad] = useState(0);
+  const [headGap, setHeadGap] = useState(0);
+  
+  const [midCols, setMidCols] = useState(1);
+  const [midRatio, setMidRatio] = useState(0); // 0 = Auto
+  const [midPad, setMidPad] = useState(0);
+  const [midGap, setMidGap] = useState(0);
+  
+  const [footCols, setFootCols] = useState(1);
+  const [footRatio, setFootRatio] = useState(0); // 0 = Auto
+  const [footPad, setFootPad] = useState(0);
+  const [footGap, setFootGap] = useState(0);
+  
+  const [gap, setGap] = useState(0);
+  const [rad, setRad] = useState(0);
+  const [bgc, setBgc] = useState('#0b1426'); // Xanh đậm của nền game Liên Quân
+  const [pad, setPad] = useState(5);
   const [fit, setFit] = useState<'cover' | 'contain' | 'stretch' | 'original'>('cover');
-  const [pad, setPad] = useState(10);
+  const [borderColor, setBorderColor] = useState('#224c8a'); // Viền xanh xám
+  const [borderStyle, setBorderStyle] = useState<'solid' | 'gradient1'>('solid');
+  const [borderWidth, setBorderWidth] = useState(4);
   const [showDim, setShowDim] = useState(false);
-  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
   
-  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragOver, setIsDragOver] = useState<SectionKey | null>(null);
   const [hasRendered, setHasRendered] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const bgInputRef = useRef<HTMLInputElement>(null);
 
-  const handleBgChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const src = ev.target?.result as string;
-        const img = new Image();
-        img.onload = () => {
-          setBgImage(img);
-          setHasRendered(false);
-        };
-        img.src = src;
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const clearBg = () => {
-    setBgImage(null);
-    if (bgInputRef.current) bgInputRef.current.value = '';
-    setHasRendered(false);
-  };
-
-  const processFiles = (files: FileList | File[]) => {
+  const processFiles = (files: FileList | File[], section: SectionKey) => {
     Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) {
-        return;
-      }
+      if (!file.type.startsWith('image/')) return;
       
       const reader = new FileReader();
       reader.onload = (e) => {
         const src = e.target?.result as string;
         const img = new Image();
         img.onload = () => {
-          setImages(prev => [
+          setSections(prev => ({
             ...prev,
-            { id: Math.random().toString(36).substr(2, 9), src, file, imgElement: img }
-          ]);
+            [section]: [
+              ...prev[section],
+              { id: Math.random().toString(36).substr(2, 9), src, file, imgElement: img }
+            ]
+          }));
         };
         img.src = src;
       };
@@ -76,68 +74,29 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     });
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>, section: SectionKey) => {
     if (e.target.files) {
-      processFiles(e.target.files);
+      processFiles(e.target.files, section);
     }
-    // reset input
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    e.target.value = '';
   };
 
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragOver(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragOver(false);
-    if (e.dataTransfer.files) {
-      processFiles(e.dataTransfer.files);
-    }
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+  const handleRemoveImage = (section: SectionKey, index: number) => {
+    setSections(prev => ({
+      ...prev,
+      [section]: prev[section].filter((_, i) => i !== index)
+    }));
     setHasRendered(false);
   };
 
   const clearAll = () => {
-    setImages([]);
-    clearBg();
-    setHasRendered(false);
-  };
-
-  // Thumbnail drag and drop
-  const handleThumbDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
-    setDraggedIdx(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleThumbDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
-
-  const handleThumbDrop = (e: DragEvent<HTMLDivElement>, index: number) => {
-    e.preventDefault();
-    if (draggedIdx === null || draggedIdx === index) return;
-    
-    setImages(prev => {
-      const newArr = [...prev];
-      const movedItem = newArr.splice(draggedIdx, 1)[0];
-      newArr.splice(index, 0, movedItem);
-      return newArr;
-    });
-    setDraggedIdx(null);
+    setSections({ header: [], middle: [], footer: [] });
     setHasRendered(false);
   };
 
   const renderCanvas = () => {
-    if (images.length === 0) {
+    const { header, middle, footer } = sections;
+    if (header.length === 0 && middle.length === 0 && footer.length === 0) {
       alert('Vui lòng thêm ít nhất 1 ảnh!');
       return;
     }
@@ -147,86 +106,164 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const actualCols = Math.max(1, cols);
-    const rows = Math.ceil(images.length / actualCols);
-    
-    let cellW = csw;
-    let cellH = csh;
+    // === TÍNH TOÁN CÁC BỤC === //
+    const w = canvasW;
 
-    if (fit === 'original' && images[0].imgElement) {
-      cellW = images[0].imgElement.naturalWidth;
-      cellH = images[0].imgElement.naturalHeight;
+    const computeSection = (sectionItems: ImageData[], cols: number, ratio: number, itemW: number, secGap: number) => {
+      const rows = Math.ceil(sectionItems.length / cols);
+      let blockH = 0;
+      const rowHeights: number[] = [];
+      for (let r = 0; r < rows; r++) {
+        let rowH = 0;
+        if (ratio > 0) {
+          rowH = itemW * ratio;
+        } else {
+           for (let c = 0; c < cols; c++) {
+              const idx = r * cols + c;
+              if (idx < sectionItems.length && sectionItems[idx].imgElement) {
+                 const img = sectionItems[idx].imgElement!;
+                 const h = itemW * (img.naturalHeight / img.naturalWidth);
+                 if (h > rowH) rowH = h;
+              }
+           }
+           if (rowH === 0) rowH = itemW;
+        }
+        rowHeights.push(rowH);
+        blockH += rowH;
+      }
+      if (rows > 0) blockH += (rows - 1) * secGap;
+      return { rows, rowHeights, blockH, cols };
+    };
+
+    const headC = Math.max(1, headCols);
+    const awHead = w - pad * 2 - headPad * 2;
+    const hw = (awHead - headGap * (headC - 1)) / headC;
+    const headLayout = computeSection(header, headC, headRatio, hw, headGap);
+
+    const midC = Math.max(1, midCols);
+    const awMid = w - pad * 2 - midPad * 2;
+    const mw = (awMid - midGap * (midC - 1)) / midC;
+    const midLayout = computeSection(middle, midC, midRatio, mw, midGap);
+
+    const footC = Math.max(1, footCols);
+    const awFoot = w - pad * 2 - footPad * 2;
+    const fw = (awFoot - footGap * (footC - 1)) / footC;
+    const footLayout = computeSection(footer, footC, footRatio, fw, footGap);
+
+    // TÍNH TỔNG CHIỀU CAO CANVAS
+    let totalH = pad * 2;
+    if (headLayout.blockH > 0) totalH += headLayout.blockH + headPad * 2;
+    if (midLayout.blockH > 0) {
+      if (headLayout.blockH > 0) totalH += gap;
+      totalH += midLayout.blockH + midPad * 2;
+    }
+    if (footLayout.blockH > 0) {
+      if (headLayout.blockH > 0 || midLayout.blockH > 0) totalH += gap;
+      totalH += footLayout.blockH + footPad * 2;
     }
 
-    const W = pad * 2 + actualCols * cellW + (actualCols - 1) * gap;
-    const H = pad * 2 + rows * cellH + (rows - 1) * gap;
+    // UPDATE CANVAS SIZE
+    canvas.width = w;
+    canvas.height = totalH;
 
-    canvas.width = W;
-    canvas.height = H;
-
-    // Fill background
+    // FILL NỀN
     ctx.fillStyle = bgc;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, w, totalH);
 
-    if (bgImage) {
-      const sc = Math.max(W / bgImage.naturalWidth, H / bgImage.naturalHeight);
-      const dw = bgImage.naturalWidth * sc;
-      const dh = bgImage.naturalHeight * sc;
-      ctx.drawImage(bgImage, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    // KẺ VIỀN CANVAS TO
+    if (borderWidth > 0) {
+      if (borderStyle === 'solid') {
+        ctx.strokeStyle = borderColor;
+      } else if (borderStyle === 'gradient1') {
+        const grad = ctx.createLinearGradient(0, 0, w, totalH);
+        grad.addColorStop(0, '#ff0cfa'); // Pink/Magenta
+        grad.addColorStop(1, '#00f6ff'); // Cyan
+        ctx.strokeStyle = grad;
+      }
+      
+      const bw = borderWidth;
+      ctx.lineWidth = bw;
+      
+      ctx.beginPath();
+      roundRectPath(ctx, bw / 2, bw / 2, w - bw, totalH - bw, rad);
+      ctx.stroke();
     }
 
-    // Render each image
-    images.forEach((item, idx) => {
-      const col = idx % actualCols;
-      const row = Math.floor(idx / actualCols);
-      
-      const x = pad + col * (cellW + gap);
-      const y = pad + row * (cellH + gap);
+    let currentY = pad;
 
-      ctx.save();
-      roundRectClip(ctx, x, y, cellW, cellH, rad);
+    const drawGrid = (items: ImageData[], layout: {rows: number, rowHeights: number[], cols: number, blockH: number}, cW: number, ratio: number, secPad: number, secGap: number) => {
+      let my = currentY + secPad;
+      for (let r = 0; r < layout.rows; r++) {
+        const rh = layout.rowHeights[r];
+        for (let c = 0; c < layout.cols; c++) {
+           const idx = r * layout.cols + c;
+           if (idx < items.length) {
+              const startX = pad + secPad + c * (cW + secGap);
+              const startY = my;
+              const endX = startX + cW;
+              const endY = my + rh;
+              
+              const x = Math.round(startX);
+              const y = Math.round(startY);
+              const w = Math.round(endX) - x;
+              const h = Math.round(endY) - y;
 
-      const img = item.imgElement;
-      if (!img) return;
-      
-      const iw = img.naturalWidth;
-      const ih = img.naturalHeight;
-      let sc, dw, dh;
-
-      if (fit === 'stretch') {
-        ctx.drawImage(img, x, y, cellW, cellH);
-      } else if (fit === 'original') {
-        ctx.drawImage(img, x + (cellW - iw) / 2, y + (cellH - ih) / 2, iw, ih);
-      } else if (fit === 'contain') {
-        sc = Math.min(cellW / iw, cellH / ih);
-        dw = iw * sc; 
-        dh = ih * sc;
-        ctx.drawImage(img, x + (cellW - dw) / 2, y + (cellH - dh) / 2, dw, dh);
-      } else {
-        // cover
-        sc = Math.max(cellW / iw, cellH / ih);
-        dw = iw * sc; 
-        dh = ih * sc;
-        ctx.drawImage(img, x + (cellW - dw) / 2, y + (cellH - dh) / 2, dw, dh);
+              drawItem(ctx, items[idx].imgElement, x, y, w, h, rad, ratio === 0 ? 'stretch' : fit);
+           }
+        }
+        my += rh + secGap;
       }
+      currentY += layout.blockH + secPad * 2 + gap; // + gap (khoảng cách rời cho phần sau)
+    };
 
-      if (showDim) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(x, y + cellH - 24, cellW, 24);
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${iw} × ${ih}`, x + cellW / 2, y + cellH - 12);
-      }
-
-      ctx.restore();
-    });
+    if (header.length > 0) drawGrid(header, headLayout, hw, headRatio, headPad, headGap);
+    if (middle.length > 0) drawGrid(middle, midLayout, mw, midRatio, midPad, midGap);
+    if (footer.length > 0) drawGrid(footer, footLayout, fw, footRatio, footPad, footGap);
 
     setHasRendered(true);
   };
 
-  const roundRectClip = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+  const drawItem = (ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, x: number, y: number, w: number, h: number, r: number, drawFit: string) => {
+    if (!img) return;
+    ctx.save();
+    
+    roundRectPath(ctx, x, y, w, h, r);
+    ctx.clip();
+
+    const iw = img.naturalWidth;
+    const ih = img.naturalHeight;
+    let sc, dw, dh;
+
+    // Scale
+    if (drawFit === 'stretch') {
+      ctx.drawImage(img, x, y, w, h);
+    } else if (drawFit === 'contain') {
+      sc = Math.min(w / iw, h / ih);
+      dw = iw * sc; dh = ih * sc;
+      ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    } else if (drawFit === 'original') {
+      ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+    } else {
+      // cover
+      sc = Math.max(w / iw, h / ih);
+      dw = iw * sc; dh = ih * sc;
+      ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    }
+    
+    ctx.restore();
+
+    if (showDim) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(x, y + h - 24, w, 24);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${iw} × ${ih}`, x + w / 2, y + h - 12);
+    }
+  };
+
+  const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
@@ -238,155 +275,158 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     ctx.lineTo(x, y + r);
     ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
-    ctx.clip();
   };
 
   const downloadImage = () => {
     if (!canvasRef.current) return;
     const link = document.createElement('a');
-    link.download = `ghep-anh-${Date.now()}.png`;
+    link.download = `ghep-anh-lien-quan-${Date.now()}.png`;
     link.href = canvasRef.current.toDataURL('image/png');
     link.click();
   };
 
-  return (
-    <div className="container">
-      <header style={{ position: 'relative' }}>
-        <h1>Ghép Ảnh Acc Liên Quân</h1>
-        <p>Kéo thả nhiều ảnh, xếp lưới, tải về 1 file PNG</p>
-        {onLogout && (
-          <button 
-            onClick={onLogout}
-            style={{ position: 'absolute', top: '0', right: '0', padding: '6px 16px', background: 'rgba(255,45,120,0.15)', color: '#ff2d78', border: '1px solid rgba(255,45,120,0.3)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold' }}
-          >
-            Đăng xuất
-          </button>
-        )}
-      </header>
-      
-      <div className="wrap">
+  const DropZoneSection = ({ sKey, label, sub }: { sKey: SectionKey, label: string, sub: string }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    return (
+      <div className="section-box">
+        <label className="section-label">{label}</label>
         <input 
           type="file" 
-          ref={fileInputRef} 
+          ref={inputRef} 
           multiple 
           accept="image/*" 
           style={{ display: 'none' }} 
-          onChange={handleFileChange} 
+          onChange={(e) => handleFileChange(e, sKey)} 
         />
-        
         <div 
-          className={`dropzone ${isDragOver ? 'over' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          className={`dropzone dz-mini ${isDragOver === sKey ? 'over' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setIsDragOver(sKey); }}
+          onDragLeave={() => setIsDragOver(null)}
+          onDrop={(e) => { 
+            e.preventDefault(); 
+            setIsDragOver(null); 
+            if (e.dataTransfer.files) processFiles(e.dataTransfer.files, sKey); 
+          }}
+          onClick={() => inputRef.current?.click()}
         >
-          <div className="ico"><ImageIcon size={40} /></div>
-          <p>Kéo & thả ảnh vào đây, hoặc <b style={{color: 'var(--cyan)'}}>nhấn để chọn ảnh</b></p>
-          <p className="dz-sub">Hỗ trợ PNG, JPG, WEBP — chọn nhiều ảnh cùng lúc</p>
+          <div className="ico"><Layers size={20} /></div>
+          <p>{label}</p>
+          <p className="dz-sub">{sub}</p>
         </div>
-
-        <div className="ctrls">
-          <div className="cg">
-            <label>Số cột</label>
-            <input type="number" value={cols} min={1} max={20} onChange={e => setCols(parseInt(e.target.value) || 1)} />
-          </div>
-          <div className="cg" style={{ opacity: fit === 'original' ? 0.5 : 1 }}>
-            <label>Chiều rộng ô (px)</label>
-            <input type="number" value={csw} min={40} max={2000} onChange={e => setCsw(parseInt(e.target.value) || 160)} disabled={fit === 'original'} />
-          </div>
-          <div className="cg" style={{ opacity: fit === 'original' ? 0.5 : 1 }}>
-            <label>Chiều cao ô (px)</label>
-            <input type="number" value={csh} min={40} max={2000} onChange={e => setCsh(parseInt(e.target.value) || 160)} disabled={fit === 'original'} />
-          </div>
-          <div className="cg">
-            <label>Khoảng cách (px)</label>
-            <input type="number" value={gap} min={0} max={80} onChange={e => setGap(parseInt(e.target.value) || 0)} />
-          </div>
-          <div className="cg">
-            <label>Bo góc (px)</label>
-            <input type="number" value={rad} min={0} max={80} onChange={e => setRad(parseInt(e.target.value) || 0)} />
-          </div>
-          <div className="cg">
-            <label>Màu nền</label>
-            <input type="color" value={bgc} onChange={e => setBgc(e.target.value)} />
-          </div>
-          <div className="cg">
-            <label>Ảnh nền ghép</label>
-            <div style={{ position: 'relative', display: 'flex', background: '#111820', border: '1px solid rgba(0,240,255,0.18)', borderRadius: '6px' }}>
-              <input type="file" accept="image/*" ref={bgInputRef} onChange={handleBgChange} style={{ border: 'none', background: 'transparent', padding: '6px 24px 6px 6px', fontSize: '0.75rem', width: '100%', outline: 'none', color: '#e8eaf6' }} />
-              {bgImage && (
-                <div onClick={clearBg} title="Xóa ảnh nền" style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', background: 'rgba(255,45,120,0.88)', color: '#fff', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold' }}>×</div>
-              )}
-            </div>
-          </div>
-          <div className="cg">
-            <label>Hiển thị ảnh</label>
-            <select value={fit} onChange={e => setFit(e.target.value as any)}>
-              <option value="cover">Cover (Cắt vừa ô)</option>
-              <option value="contain">Contain (Hiện toàn bộ)</option>
-              <option value="stretch">Stretch (Kéo giãn)</option>
-              <option value="original">Original (Kích cỡ gốc)</option>
-            </select>
-          </div>
-          <div className="cg">
-            <label>Kích cỡ ban đầu</label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#e8eaf6', cursor: 'pointer', textTransform: 'none', fontWeight: 'normal' }}>
-              <input type="checkbox" checked={showDim} onChange={e => setShowDim(e.target.checked)} style={{ width: 'auto', cursor: 'pointer', margin: 0 }} />
-              Hiện WxH trên ảnh
-            </label>
-          </div>
-          <div className="cg">
-            <label>Padding viền (px)</label>
-            <input type="number" value={pad} min={0} max={100} onChange={e => setPad(parseInt(e.target.value) || 0)} />
-          </div>
-        </div>
-
-        <div className="btns">
-          <button className="b-up" onClick={() => fileInputRef.current?.click()}>
-            <PlusCircle size={16} /> Thêm ảnh {images.length > 0 && <span>({images.length})</span>}
-          </button>
-          <button className="b-go" onClick={renderCanvas}>
-            <RefreshCw size={16} /> Ghép ảnh
-          </button>
-          <button className="b-dl" onClick={downloadImage} disabled={!hasRendered}>
-            <Download size={16} /> Tải về
-          </button>
-          <button className="b-cl" onClick={clearAll}>
-            <Trash2 size={16} /> Xóa tất cả
-          </button>
-        </div>
-
-        {images.length > 0 && (
+        
+        {sections[sKey].length > 0 && (
           <div className="thumbs">
-            {images.map((img, i) => (
-              <div 
-                key={img.id}
-                className={`th ${draggedIdx === i ? 'drag-on' : ''}`}
-                draggable
-                onDragStart={(e) => handleThumbDragStart(e, i)}
-                onDragOver={handleThumbDragOver}
-                onDrop={(e) => handleThumbDrop(e, i)}
-                onDragEnd={() => setDraggedIdx(null)}
-              >
-                <img src={img.src} alt={`upload-${i}`} />
+            {sections[sKey].map((img, i) => (
+              <div key={img.id} className="th">
+                <img src={img.src} alt="" />
                 <span className="th-n">{i + 1}</span>
-                {showDim && (
-                  <span style={{ position: 'absolute', bottom: '2px', right: '3px', fontSize: '8px', color: '#fff', textShadow: '0 1px 2px #000', fontWeight: 'bold', pointerEvents: 'none' }}>
-                    {img.imgElement?.naturalWidth}x{img.imgElement?.naturalHeight}
-                  </span>
-                )}
-                <div className="th-x" onClick={(e) => { e.stopPropagation(); handleRemoveImage(i); }}>×</div>
+                <div className="th-x" onClick={() => handleRemoveImage(sKey, i)}>×</div>
               </div>
             ))}
           </div>
         )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="container">
+      <header>
+        <h1>Trình Ghép Ảnh Siêu Cấp</h1>
+        <p>Tự động căng khít Layout (Đầu 10 cột, Cuối 21 cột như thẻ Liên Quân) — Tuỳ chỉnh hoàn toàn!</p>
+        <div style={{color:'var(--pink)', fontSize:'0.8rem', marginTop:'8px'}}>Kéo thả ảnh vào từng phần, Cột và Tỉ lệ sẽ TỰ ĐỘNG co giãn khớp 100% với khung Viền!</div>
+        {onLogout && <button className="logout-btn" onClick={onLogout}>Đăng xuất</button>}
+      </header>
+      
+      <div className="wrap">
+        <div className="sections-grid">
+          <DropZoneSection sKey="header" label="1. Phần Đầu (Chữ nhật ngang)" sub="Sẽ dàn theo tỷ lệ ngang (Ví dụ: 10 cột, 3 hàng)" />
+          <DropZoneSection sKey="middle" label="2. Phần Giữa (Thông tin Khác)" sub="Ảnh to nguyên ngang / Hoặc lưới Auto height" />
+          <DropZoneSection sKey="footer" label="3. Phần Cuối (Chữ nhật dọc)" sub="Dàn mỏng dày đặc tỉ lệ dọc (Ví dụ: 21 cột tướng)" />
+        </div>
+
+        <div className="opts-group">
+          <div className="opts-title">THÔNG SỐ CANVAS TỔNG THỂ</div>
+          <div className="opts-row">
+            <div className="cg"><label>Chiều Rộng (px)</label><input type="number" value={canvasW} min={400} max={8000} onChange={e => setCanvasW(Number(e.target.value) || 1920)}/></div>
+            <div className="cg"><label>Thưa giữa các Phần</label><input type="number" value={gap} min={0} max={100} onChange={e => setGap(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Bo góc chung (px)</label><input type="number" value={rad} min={0} max={100} onChange={e => setRad(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Viền mép ngoài ảnh</label><input type="number" value={pad} min={0} max={100} onChange={e => setPad(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Màu nền</label><input type="color" value={bgc} onChange={e => setBgc(e.target.value)}/></div>
+            <div className="cg"><label>Kiểu viền tổng</label>
+              <select value={borderStyle} onChange={e => setBorderStyle(e.target.value as any)}>
+                <option value="solid">Màu đơn sắc</option>
+                <option value="gradient1">Gradient (Hồng - Xanh)</option>
+              </select>
+            </div>
+            {borderStyle === 'solid' && (
+              <div className="cg"><label>Màu viền đơn</label><input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)}/></div>
+            )}
+            <div className="cg"><label>Độ dày viền (px)</label><input type="number" value={borderWidth} min={0} max={200} onChange={e => setBorderWidth(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Hiển thị ảnh</label>
+              <select value={fit} onChange={e => setFit(e.target.value as any)}>
+                <option value="cover">Cắt tỉ lệ (Cover)</option>
+                <option value="contain">Nguyên gốc (Contain)</option>
+                <option value="stretch">Kéo giãn (Stretch)</option>
+                <option value="original">Kích thước thật (Original)</option>
+              </select>
+            </div>
+            <div className="cg">
+              <label>Hiện chữ</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#aeb5cc', cursor: 'pointer', fontWeight: 'normal', height: '32px' }}>
+                <input type="checkbox" checked={showDim} onChange={e => setShowDim(e.target.checked)} style={{ width: 'auto', margin: 0, cursor: 'pointer' }} />
+                Hiện WxH
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="opts-group">
+          <div className="opts-title">CHI TIẾT CÁC PHẦN (TỰ ĐỘNG CHIA RỘNG THEO CANVAS)</div>
+          <div className="opts-row split-3">
+            <div className="opts-col">
+              <h4>1. Phần Đầu (Trên)</h4>
+              <div className="cg"><label>Số Cột</label><input type="number" value={headCols} min={1} max={50} onChange={e => setHeadCols(Number(e.target.value) || 1)}/></div>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={headRatio} onChange={e => setHeadRatio(Number(e.target.value))}/></div>
+              <div className="cg"><label>Padding viền bao</label><input type="number" value={headPad} min={0} onChange={e => setHeadPad(Number(e.target.value) || 0)}/></div>
+              <div className="cg"><label>Khoảng cách các ảnh</label><input type="number" value={headGap} min={0} onChange={e => setHeadGap(Number(e.target.value) || 0)}/></div>
+            </div>
+            
+            <div className="opts-col">
+              <h4>2. Phần Giữa (Info)</h4>
+              <div className="cg"><label>Số Cột</label><input type="number" value={midCols} min={1} max={50} onChange={e => setMidCols(Number(e.target.value) || 1)}/></div>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={midRatio} onChange={e => setMidRatio(Number(e.target.value))}/></div>
+              <div className="cg"><label>Padding viền bao</label><input type="number" value={midPad} min={0} onChange={e => setMidPad(Number(e.target.value) || 0)}/></div>
+              <div className="cg"><label>Khoảng cách các ảnh</label><input type="number" value={midGap} min={0} onChange={e => setMidGap(Number(e.target.value) || 0)}/></div>
+            </div>
+            
+            <div className="opts-col">
+              <h4>3. Phần Cuối (Dưới)</h4>
+              <div className="cg"><label>Số Cột</label><input type="number" value={footCols} min={1} max={50} onChange={e => setFootCols(Number(e.target.value) || 1)}/></div>
+              <div className="cg"><label>Tỷ lệ H / W (0 = Auto)</label><input type="number" step="0.05" value={footRatio} onChange={e => setFootRatio(Number(e.target.value))}/></div>
+              <div className="cg"><label>Padding viền bao</label><input type="number" value={footPad} min={0} onChange={e => setFootPad(Number(e.target.value) || 0)}/></div>
+              <div className="cg"><label>Khoảng cách các ảnh</label><input type="number" value={footGap} min={0} onChange={e => setFootGap(Number(e.target.value) || 0)}/></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="btns">
+          <button className="b-go" onClick={renderCanvas}>
+            <RefreshCw size={16} /> Bắt đầu Ghép
+          </button>
+          <button className="b-dl" onClick={downloadImage} disabled={!hasRendered}>
+            <Download size={16} /> Tải về máy
+          </button>
+          <button className="b-cl" onClick={clearAll}>
+            <Trash2 size={16} /> Xóa sạch
+          </button>
+        </div>
 
         <div className="prev">
-          <h3>Xem trước kết quả</h3>
-          {!hasRendered && <p className="ph">Thêm ảnh và nhấn "Ghép ảnh" để xem kết quả</p>}
+          <h3>Xem trước Kết quả (Max Resolution)</h3>
+          {!hasRendered && <p className="ph">Thêm ảnh rồi nhấn "Bắt đầu Ghép" để xem kết quả siêu nét nhé!</p>}
           <div className="canvas-wrapper">
-            <canvas ref={canvasRef} style={{ display: hasRendered ? 'block' : 'none' }} />
+            <canvas ref={canvasRef} style={{ display: hasRendered ? 'block' : 'none', boxShadow: '0 0 40px rgba(0, 240, 255, 0.12)' }} />
           </div>
         </div>
       </div>
