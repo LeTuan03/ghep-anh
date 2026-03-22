@@ -5,15 +5,43 @@ import '../App.css';
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (loginForm.username === 'admin' && loginForm.password === 'admin') {
-      onLogin();
-      navigate('/');
-    } else {
-      alert('Tài khoản hoặc mật khẩu không đúng! (Gợi ý: admin/admin)');
+    if (!loginForm.username || !loginForm.password) {
+      alert('Vui lòng nhập đầy đủ tài khoản và mật khẩu!');
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://localhost:8085/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(loginForm),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        localStorage.setItem('accessToken', result.data.accessToken);
+        if (result.data.user) {
+           localStorage.setItem('user', JSON.stringify(result.data.user));
+        }
+        onLogin();
+        navigate('/');
+      } else {
+        alert(result.message || result.error || 'Tài khoản hoặc mật khẩu không đúng!');
+      }
+    } catch (error) {
+      console.error('Lỗi khi đăng nhập:', error);
+      alert('Lỗi kết nối đến máy chủ. Vui lòng thử lại sau!');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -45,8 +73,12 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           />
         </div>
         
-        <button type="submit" style={{ marginTop: '10px', padding: '12px', background: 'linear-gradient(90deg, #00f0ff, #00a2ff)', color: '#000', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 0 20px rgba(0,240,255,0.4)' }}>
-          Đăng Nhập
+        <button 
+          type="submit" 
+          disabled={isLoading}
+          style={{ marginTop: '10px', padding: '12px', background: 'linear-gradient(90deg, #00f0ff, #00a2ff)', color: '#000', border: 'none', borderRadius: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '1rem', textTransform: 'uppercase', letterSpacing: '1px', boxShadow: '0 0 20px rgba(0,240,255,0.4)', opacity: isLoading ? 0.7 : 1 }}
+        >
+          {isLoading ? 'Đang Đăng Nhập...' : 'Đăng Nhập'}
         </button>
       </form>
     </div>
