@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import '../App.css';
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ username: 'admin', password: 'password123' });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -49,7 +49,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <form onSubmit={handleLogin} style={{ background: '#111820', padding: '40px 30px', borderRadius: '16px', border: '1px solid rgba(0,240,255,0.18)', boxShadow: '0 0 40px rgba(0,240,255,0.1)', width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <h2 style={{ textAlign: 'center', color: '#00f0ff', margin: 0, fontSize: '1.8rem', textShadow: '0 0 10px rgba(0,240,255,0.5)' }}>Đăng Nhập</h2>
-        <p style={{ textAlign: 'center', color: '#8b9bb4', fontSize: '0.9rem', margin: '-10px 0 10px 0' }}>Hệ thống ghép ảnh Acc Liên Quân</p>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <label style={{ color: '#e8eaf6', fontSize: '0.9rem' }}>Tài khoản</label>
