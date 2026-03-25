@@ -120,61 +120,70 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       sumAspect += img.naturalWidth / img.naturalHeight;
     });
 
-    // Target Landscape Ratio (W/H)
-    const targetRatio = 1.77; // 16:9 cho đẹp
-    // Area = W * (W / targetRatio) = sumAspect * H^2
-    let targetH = Math.sqrt((contentW * contentW) / (sumAspect * targetRatio));
+    // Target Landscape Ratio (W/H): 1920/1080 = 1.777... (Full HD)
+    const targetRatio = 1.7777; 
     
-    // Giới hạn targetH để ảnh không quá nhỏ hoặc quá to
-    targetH = Math.max(120, Math.min(450, targetH));
+    // Target Height lý tưởng ban đầu (dựa trên tỉ lệ mong muốn)
+    let baseTargetH = Math.sqrt((contentW * contentW) / (sumAspect * targetRatio));
+    baseTargetH = Math.max(35, Math.min(600, baseTargetH));
 
-    // Nếu là footer hoặc middle, có thể muốn nhiều cột hơn -> giảm height
-    // Nhưng đề bài yêu cầu "đẩy lên cùng hàng", nên ta dùng chung 1 logic flow.
+    // Tính số hàng (R) tối ưu để rải đều ảnh nhất
+    // sumAspect / (W / H) = R
+    const idealR = sumAspect / (contentW / baseTargetH);
+    const R = Math.max(1, Math.round(idealR));
 
-    const rows: { items: any[], h: number, gaps: number[] }[] = [];
-    let currentRow: any[] = [];
-    let currentRowAspect = 0;
-    let currentRowGaps: number[] = [];
+    const rows: { items: any[], h: number, gaps: number[], isFull: boolean }[] = [];
+    
+    // Chia ảnh vào R hàng sao cho mỗi hàng có tổng Aspect xấp xỉ nhau
+    const targetAspectPerRow = sumAspect / R;
+    let currentItems: any[] = [];
+    let currentAspect = 0;
+    let itemsProcessed = 0;
 
-    vAll.forEach((item, index) => {
+    for (let i = 0; i < vAll.length; i++) {
+      const item = vAll[i];
       const img = item.imgElement!;
-      const aspect = img.naturalWidth / img.naturalHeight;
+      const asp = img.naturalWidth / img.naturalHeight;
       
-      // Tính gap với ảnh trước đó trong hàng
-      let gapWithPrev = 0;
-      if (currentRow.length > 0) {
-        const prev = currentRow[currentRow.length - 1];
-        // Nếu cả 2 đều là skin hoặc footer (nhóm viền chung), gap là 0
-        if ((prev.cellType === 'skin' || prev.cellType === 'footer') && 
-            (item.cellType === 'skin' || item.cellType === 'footer')) {
-          gapWithPrev = 0;
-        } else {
-          gapWithPrev = innerPad;
-        }
+      currentItems.push({ ...item, aspect: asp });
+      currentAspect += asp;
+      itemsProcessed++;
+
+      // Quyết định xem có chốt hàng không
+      // Nếu là hàng cuối cùng của mảng items -> chốt luôn
+      // Nếu số hàng đã tạo < R - 1 (tức là chưa đến hàng cuối cùng) và đủ aspect -> chốt
+      const isLastOfAll = itemsProcessed === vAll.length;
+      const alreadyFilledEnough = currentAspect >= targetAspectPerRow;
+      const isNotLastRowInPlan = rows.length < R - 1;
+
+      if (isLastOfAll || (alreadyFilledEnough && isNotLastRowInPlan)) {
+         // Tính toán gap cho hàng này
+         const gaps: number[] = [];
+         let rowTotalGap = 0;
+         for (let j = 0; j < currentItems.length; j++) {
+            let g = 0;
+            if (j > 0) {
+               const prev = currentItems[j-1];
+               const curr = currentItems[j];
+               if ((prev.cellType === 'skin' || prev.cellType === 'footer') && 
+                   (curr.cellType === 'skin' || curr.cellType === 'footer')) {
+                 g = 0;
+               } else {
+                 g = innerPad;
+               }
+            }
+            gaps.push(g);
+            rowTotalGap += g;
+         }
+
+         // Tính chiều cao rh để hàng này khít 100% W
+         const rh = (contentW - rowTotalGap) / currentAspect;
+
+         rows.push({ items: currentItems, h: rh, gaps, isFull: true });
+         currentItems = [];
+         currentAspect = 0;
       }
-
-      currentRow.push({ ...item, aspect });
-      currentRowAspect += aspect;
-      currentRowGaps.push(gapWithPrev);
-
-      const totalGap = currentRowGaps.reduce((a, b) => a + b, 0);
-      const expectedW = currentRowAspect * targetH + totalGap;
-
-      if (expectedW > contentW || index === vAll.length - 1) {
-        if (currentRow.length > 0) {
-          const isLastRow = index === vAll.length - 1;
-          const rowTotalGap = currentRowGaps.reduce((a, b) => a + b, 0);
-          let rowH = (contentW - rowTotalGap) / currentRowAspect;
-          
-          if (isLastRow && rowH > targetH * 1.5) rowH = targetH;
-
-          rows.push({ items: currentRow, h: rowH, gaps: currentRowGaps });
-          currentRow = [];
-          currentRowAspect = 0;
-          currentRowGaps = [];
-        }
-      }
-    });
+    }
 
     // TÍNH TỔNG CHIỀU CAO
     let totalH = pad * 2;
@@ -218,6 +227,12 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     rows.forEach((row) => {
       let currentX = pad;
       const rh = row.h;
+
+      // Center if not full
+      if (!row.isFull) {
+        const rowW = row.items.reduce((sum, it, idx) => sum + it.aspect * rh + row.gaps[idx], 0);
+        currentX = pad + (contentW - rowW) / 2;
+      }
 
       // Group các Skin để vẽ viền chung nếu chúng đứng cạnh nhau
       let skinGroup: { x: number, w: number } | null = null;
