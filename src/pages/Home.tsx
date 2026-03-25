@@ -22,10 +22,10 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     middle: [],
     footer: []
   });
-  
+
   // Settings layout khít 100% bề ngang
   const [canvasW, setCanvasW] = useState(1920);
-  
+
   const [gap, setGap] = useState(0);
   const [rad, setRad] = useState(0);
   const [bgc, setBgc] = useState('#0b1426');
@@ -35,7 +35,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const [borderStyle, setBorderStyle] = useState<'solid' | 'gradient1'>('solid');
   const [borderWidth, setBorderWidth] = useState(1);
   const [showDim, setShowDim] = useState(false);
-  
+
   const [isDragOver, setIsDragOver] = useState<SectionKey | null>(null);
   const [hasRendered, setHasRendered] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,7 +43,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const processFiles = (files: FileList | File[], section: SectionKey) => {
     Array.from(files).forEach((file) => {
       if (!file.type.startsWith('image/')) return;
-      
+
       const reader = new FileReader();
       reader.onload = (e) => {
         const src = e.target?.result as string;
@@ -85,8 +85,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
   const renderCanvas = () => {
     const { header, midVIP, midWheel, midSkins, middle, footer } = sections;
-    
-    // Thu thập tất cả ảnh hợp lệ thành 1 danh sách duy nhất để xử lý flow
+
     const vAll: (ImageData & { section: SectionKey })[] = [
       ...header.map(i => ({ ...i, section: 'header' as SectionKey })),
       ...midVIP.map(i => ({ ...i, section: 'midVIP' as SectionKey, cellType: 'vip' as const })),
@@ -106,35 +105,27 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // === THÔNG SỐ CƠ BẢN ===
     const W = canvasW;
-    const innerPad = 8; // Khoảng cách giữa các ảnh (gap trong row)
-    const rowGap = gap > 0 ? gap : 8; // Sử dụng gap của người dùng nếu có, mặc định là 8
+    const innerPad = 8;
+    const rowGap = gap > 0 ? gap : 8;
     const contentW = W - pad * 2;
 
-    // === TÍNH TOÁN JUSTIFIED LAYOUT ===
-    // Để đạt được landscape (ví dụ tỉ lệ 1.6), ta tính toán targetHeight trung bình
     let sumAspect = 0;
     vAll.forEach(item => {
       const img = item.imgElement!;
       sumAspect += img.naturalWidth / img.naturalHeight;
     });
 
-    // Target Landscape Ratio (W/H): 1920/1080 = 1.777... (Full HD)
-    const targetRatio = 1.7777; 
-    
-    // Target Height lý tưởng ban đầu (dựa trên tỉ lệ mong muốn)
+    const targetRatio = 1.7777;
+
     let baseTargetH = Math.sqrt((contentW * contentW) / (sumAspect * targetRatio));
     baseTargetH = Math.max(35, Math.min(600, baseTargetH));
 
-    // Tính số hàng (R) tối ưu để rải đều ảnh nhất
-    // sumAspect / (W / H) = R
     const idealR = sumAspect / (contentW / baseTargetH);
     const R = Math.max(1, Math.round(idealR));
 
     const rows: { items: any[], h: number, gaps: number[], isFull: boolean }[] = [];
-    
-    // Chia ảnh vào R hàng sao cho mỗi hàng có tổng Aspect xấp xỉ nhau
+
     const targetAspectPerRow = sumAspect / R;
     let currentItems: any[] = [];
     let currentAspect = 0;
@@ -144,55 +135,48 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       const item = vAll[i];
       const img = item.imgElement!;
       const asp = img.naturalWidth / img.naturalHeight;
-      
+
       currentItems.push({ ...item, aspect: asp });
       currentAspect += asp;
       itemsProcessed++;
 
-      // Quyết định xem có chốt hàng không
-      // Nếu là hàng cuối cùng của mảng items -> chốt luôn
-      // Nếu số hàng đã tạo < R - 1 (tức là chưa đến hàng cuối cùng) và đủ aspect -> chốt
       const isLastOfAll = itemsProcessed === vAll.length;
       const alreadyFilledEnough = currentAspect >= targetAspectPerRow;
       const isNotLastRowInPlan = rows.length < R - 1;
 
       if (isLastOfAll || (alreadyFilledEnough && isNotLastRowInPlan)) {
-         // Tính toán gap cho hàng này
-         const gaps: number[] = [];
-         let rowTotalGap = 0;
-         for (let j = 0; j < currentItems.length; j++) {
-            let g = 0;
-            if (j > 0) {
-               const prev = currentItems[j-1];
-               const curr = currentItems[j];
-               if ((prev.cellType === 'skin' || prev.cellType === 'footer') && 
-                   (curr.cellType === 'skin' || curr.cellType === 'footer')) {
-                 g = 0;
-               } else {
-                 g = innerPad;
-               }
+        const gaps: number[] = [];
+        let rowTotalGap = 0;
+        for (let j = 0; j < currentItems.length; j++) {
+          let g = 0;
+          if (j > 0) {
+            const prev = currentItems[j - 1];
+            const curr = currentItems[j];
+            if ((prev.cellType === 'skin' || prev.cellType === 'footer') &&
+              (curr.cellType === 'skin' || curr.cellType === 'footer')) {
+              g = 0;
+            } else {
+              g = innerPad;
             }
-            gaps.push(g);
-            rowTotalGap += g;
-         }
+          }
+          gaps.push(g);
+          rowTotalGap += g;
+        }
 
-         // Tính chiều cao rh để hàng này khít 100% W
-         const rh = (contentW - rowTotalGap) / currentAspect;
+        const rh = (contentW - rowTotalGap) / currentAspect;
 
-         rows.push({ items: currentItems, h: rh, gaps, isFull: true });
-         currentItems = [];
-         currentAspect = 0;
+        rows.push({ items: currentItems, h: rh, gaps, isFull: true });
+        currentItems = [];
+        currentAspect = 0;
       }
     }
 
-    // TÍNH TỔNG CHIỀU CAO
     let totalH = pad * 2;
     rows.forEach((row, i) => {
       totalH += row.h;
       if (i < rows.length - 1) totalH += rowGap;
     });
 
-    // === AUTO SCALE LIMIT PROTECTION ===
     const MAX_CANVAS_DIM = 16000;
     let scaleF = 1;
     if (totalH > MAX_CANVAS_DIM || W > MAX_CANVAS_DIM) {
@@ -208,7 +192,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     ctx.save();
     ctx.scale(scaleF, scaleF);
 
-    // KẺ VIỀN CANVAS
     if (borderWidth > 0) {
       ctx.lineWidth = borderWidth;
       if (borderStyle === 'solid') ctx.strokeStyle = borderColor;
@@ -218,23 +201,20 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         ctx.strokeStyle = g;
       }
       ctx.beginPath();
-      roundRectPath(ctx, borderWidth/2, borderWidth/2, W - borderWidth, totalH - borderWidth, rad);
+      roundRectPath(ctx, borderWidth / 2, borderWidth / 2, W - borderWidth, totalH - borderWidth, rad);
       ctx.stroke();
     }
 
-    // VẼ Từng Hàng
     let currentY = pad;
     rows.forEach((row) => {
       let currentX = pad;
       const rh = row.h;
 
-      // Center if not full
       if (!row.isFull) {
         const rowW = row.items.reduce((sum, it, idx) => sum + it.aspect * rh + row.gaps[idx], 0);
         currentX = pad + (contentW - rowW) / 2;
       }
 
-      // Group các Skin để vẽ viền chung nếu chúng đứng cạnh nhau
       let skinGroup: { x: number, w: number } | null = null;
 
       for (let i = 0; i < row.items.length; i++) {
@@ -244,37 +224,36 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
         const itemW = item.aspect * rh;
         const isHeader = item.section === 'header';
-        
+
         const individualBorder = (isHeader || item.cellType === 'wheel') ? 1 : 0;
         const bCol = isHeader ? '#ffffff' : borderColor;
-        
+
         const pX = (item.cellType === 'vip' || item.cellType === 'wheel') ? 4 : 0;
         const pY = pX;
-        
+
         const drawX = Math.round(currentX + pX);
         const drawY = Math.round(currentY + pY);
         const drawW = Math.round(itemW - pX * 2);
         const drawH = Math.round(rh - pY * 2);
 
-        let itemFit: string = fit; 
+        let itemFit: string = fit;
         if (item.cellType === 'vip' || item.cellType === 'wheel') itemFit = 'contain';
         else if (isHeader) itemFit = 'cover';
         else if (item.cellType === 'footer' || item.cellType === 'skin') itemFit = 'stretch';
 
         drawItem(ctx, item.imgElement, drawX, drawY, drawW, drawH, rad, itemFit, individualBorder, bCol);
 
-        // Logic Viền Chung cho Skin
         if (item.cellType === 'skin' || item.cellType === 'footer') {
-           if (!skinGroup) {
-             skinGroup = { x: currentX, w: itemW };
-           } else {
-             skinGroup.w += itemW + gapBefore;
-           }
+          if (!skinGroup) {
+            skinGroup = { x: currentX, w: itemW };
+          } else {
+            skinGroup.w += itemW + gapBefore;
+          }
         } else {
-           if (skinGroup) {
-              drawGroupBorder(ctx, skinGroup.x, currentY, skinGroup.w, rh, rad, '#ffffff');
-              skinGroup = null;
-           }
+          if (skinGroup) {
+            drawGroupBorder(ctx, skinGroup.x, currentY, skinGroup.w, rh, rad, '#ffffff');
+            skinGroup = null;
+          }
         }
 
         currentX += itemW;
@@ -282,7 +261,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
       const finalSG = skinGroup;
       if (finalSG) {
-         drawGroupBorder(ctx, finalSG.x, currentY, finalSG.w, rh, rad, '#ffffff');
+        drawGroupBorder(ctx, finalSG.x, currentY, finalSG.w, rh, rad, '#ffffff');
       }
 
       currentY += rh + rowGap;
@@ -320,7 +299,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     } else if (drawFit === 'original') {
       ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
     } else {
-      // cover
       sc = Math.max(w / iw, h / ih);
       dw = iw * sc; dh = ih * sc;
       ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
@@ -343,7 +321,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       ctx.fillStyle = '#fff';
       ctx.font = '10px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(`${iw}x${ih}`, x + w/2, y + h - 7);
+      ctx.fillText(`${iw}x${ih}`, x + w / 2, y + h - 7);
     }
   };
 
@@ -375,22 +353,22 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     return (
       <div className="section-box">
         <label className="section-label">{label}</label>
-        <input 
-          type="file" 
-          ref={inputRef} 
-          multiple 
-          accept="image/*" 
-          style={{ display: 'none' }} 
-          onChange={(e) => handleFileChange(e, sKey)} 
+        <input
+          type="file"
+          ref={inputRef}
+          multiple
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => handleFileChange(e, sKey)}
         />
-        <div 
+        <div
           className={`dropzone dz-mini ${isDragOver === sKey ? 'over' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setIsDragOver(sKey); }}
           onDragLeave={() => setIsDragOver(null)}
-          onDrop={(e) => { 
-            e.preventDefault(); 
-            setIsDragOver(null); 
-            if (e.dataTransfer.files) processFiles(e.dataTransfer.files, sKey); 
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(null);
+            if (e.dataTransfer.files) processFiles(e.dataTransfer.files, sKey);
           }}
           onClick={() => inputRef.current?.click()}
         >
@@ -398,13 +376,13 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
           <p>{label}</p>
           <p className="dz-sub">{sub}</p>
         </div>
-        
+
         {sections[sKey].length > 0 && (
           <div className="thumbs">
             {sections[sKey].map((img, i) => (
-              <div 
-                key={img.id} 
-                className="th" 
+              <div
+                key={img.id}
+                className="th"
                 style={sKey === 'header' ? { border: '1px solid #ffffff' } : {}}
               >
                 <img src={img.src} alt="" />
@@ -423,16 +401,16 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       <header>
         {onLogout && <button className="logout-btn" onClick={onLogout}>Đăng xuất</button>}
       </header>
-      
+
       <div className="wrap">
         <div className="sections-grid">
           <DropZoneSection sKey="header" label="1. Phần Đầu (Chữ nhật ngang)" sub="Kéo thả ảnh phần đầu vào đây" />
-          
+
           <div style={{ padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-             <h3 style={{ margin: 0, fontSize: '13px', color: '#ffeb3b', textTransform: 'uppercase' }}>2. Phần Giữa</h3>
-             <DropZoneSection sKey="midVIP" label="2.1 Ảnh KHÔNG viền" sub="Phù hợp: Bảng Rank Lớn, Avatar... (Cách rời)" />
-             {/* <DropZoneSection sKey="midWheel" label="2.2 Ảnh CỐ viền rời" sub="Phù hợp: Các vòng quay nhỏ... (Viền lẻ)" /> */}
-             <DropZoneSection sKey="midSkins" label="2.2 Nhóm ảnh viền chung" sub="Phù hợp: Tướng đặt sát nhau cuối hàng" />
+            <h3 style={{ margin: 0, fontSize: '13px', color: '#ffeb3b', textTransform: 'uppercase' }}>2. Phần Giữa</h3>
+            <DropZoneSection sKey="midVIP" label="2.1 Ảnh KHÔNG viền" sub="Phù hợp: Bảng Rank Lớn, Avatar... (Cách rời)" />
+            {/* <DropZoneSection sKey="midWheel" label="2.2 Ảnh CỐ viền rời" sub="Phù hợp: Các vòng quay nhỏ... (Viền lẻ)" /> */}
+            <DropZoneSection sKey="midSkins" label="2.2 Nhóm ảnh viền chung" sub="Phù hợp: Tướng đặt sát nhau cuối hàng" />
           </div>
 
           <DropZoneSection sKey="footer" label="3. Phần Cuối (Lưới 21 cột)" sub="Kéo thả ảnh phần cuối vào đây" />
@@ -441,11 +419,11 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         <div className="opts-group">
           <div className="opts-title">THÔNG SỐ CANVAS TỔNG THỂ</div>
           <div className="opts-row">
-            <div className="cg"><label>Chiều Rộng (px)</label><input type="number" value={canvasW} min={400} max={8000} onChange={e => setCanvasW(Number(e.target.value) || 1920)}/></div>
-            <div className="cg"><label>Thưa giữa các Phần</label><input type="number" value={gap} min={0} max={100} onChange={e => setGap(Number(e.target.value) || 0)}/></div>
-            <div className="cg"><label>Bo góc chung (px)</label><input type="number" value={rad} min={0} max={100} onChange={e => setRad(Number(e.target.value) || 0)}/></div>
-            <div className="cg"><label>Viền mép ngoài ảnh</label><input type="number" value={pad} min={0} max={100} onChange={e => setPad(Number(e.target.value) || 0)}/></div>
-            <div className="cg"><label>Màu nền</label><input type="color" value={bgc} onChange={e => setBgc(e.target.value)}/></div>
+            <div className="cg"><label>Chiều Rộng (px)</label><input type="number" value={canvasW} min={400} max={8000} onChange={e => setCanvasW(Number(e.target.value) || 1920)} /></div>
+            <div className="cg"><label>Thưa giữa các Phần</label><input type="number" value={gap} min={0} max={100} onChange={e => setGap(Number(e.target.value) || 0)} /></div>
+            <div className="cg"><label>Bo góc chung (px)</label><input type="number" value={rad} min={0} max={100} onChange={e => setRad(Number(e.target.value) || 0)} /></div>
+            <div className="cg"><label>Viền mép ngoài ảnh</label><input type="number" value={pad} min={0} max={100} onChange={e => setPad(Number(e.target.value) || 0)} /></div>
+            <div className="cg"><label>Màu nền</label><input type="color" value={bgc} onChange={e => setBgc(e.target.value)} /></div>
             <div className="cg"><label>Kiểu viền tổng</label>
               <select value={borderStyle} onChange={e => setBorderStyle(e.target.value as any)}>
                 <option value="solid">Màu đơn sắc</option>
@@ -453,9 +431,9 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
               </select>
             </div>
             {borderStyle === 'solid' && (
-              <div className="cg"><label>Màu viền đơn</label><input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)}/></div>
+              <div className="cg"><label>Màu viền đơn</label><input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)} /></div>
             )}
-            <div className="cg"><label>Độ dày viền (px)</label><input type="number" value={borderWidth} min={0} max={200} onChange={e => setBorderWidth(Number(e.target.value) || 0)}/></div>
+            <div className="cg"><label>Độ dày viền (px)</label><input type="number" value={borderWidth} min={0} max={200} onChange={e => setBorderWidth(Number(e.target.value) || 0)} /></div>
             <div className="cg"><label>Hiển thị ảnh</label>
               <select value={fit} onChange={e => setFit(e.target.value as any)}>
                 <option value="cover">Cắt tỉ lệ (Cover)</option>
