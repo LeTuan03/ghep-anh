@@ -11,11 +11,12 @@ interface ImageData {
   cellType?: 'vip' | 'wheel' | 'skin' | 'footer';
 }
 
-type SectionKey = 'header' | 'midVIP' | 'midWheel' | 'midSkins' | 'middle' | 'footer';
+type SectionKey = 'header' | 'profile' | 'midVIP' | 'midWheel' | 'midSkins' | 'middle' | 'footer';
 
 export default function Home({ onLogout }: { onLogout?: () => void }) {
   const [sections, setSections] = useState<Record<SectionKey, ImageData[]>>({
     header: [],
+    profile: [],
     midVIP: [],
     midWheel: [],
     midSkins: [],
@@ -79,15 +80,16 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   };
 
   const clearAll = () => {
-    setSections({ header: [], midVIP: [], midWheel: [], midSkins: [], middle: [], footer: [] });
+    setSections({ header: [], profile: [], midVIP: [], midWheel: [], midSkins: [], middle: [], footer: [] });
     setHasRendered(false);
   };
 
   const renderCanvas = () => {
-    const { header, midVIP, midWheel, midSkins, middle, footer } = sections;
+    const { header, profile, midVIP, midWheel, midSkins, middle, footer } = sections;
 
     const vAll: (ImageData & { section: SectionKey })[] = [
       ...header.map(i => ({ ...i, section: 'header' as SectionKey })),
+      ...profile.map(i => ({ ...i, section: 'profile' as SectionKey })),
       ...midVIP.map(i => ({ ...i, section: 'midVIP' as SectionKey, cellType: 'vip' as const })),
       ...midWheel.map(i => ({ ...i, section: 'midWheel' as SectionKey, cellType: 'wheel' as const })),
       ...midSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const })),
@@ -110,29 +112,60 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     const rowGap = gap > 0 ? gap : 8;
     const contentW = W - pad * 2;
 
+    const getAsp = (img: HTMLImageElement | null) => img ? img.naturalWidth / img.naturalHeight : 0;
+
     let sumAspect = 0;
     vAll.forEach(item => {
-      const img = item.imgElement!;
-      sumAspect += img.naturalWidth / img.naturalHeight;
+      sumAspect += getAsp(item.imgElement);
     });
 
     const targetRatio = 1.7777;
-
     let baseTargetH = Math.sqrt((contentW * contentW) / (sumAspect * targetRatio));
     baseTargetH = Math.max(35, Math.min(600, baseTargetH));
 
     const idealR = sumAspect / (contentW / baseTargetH);
     const R = Math.max(1, Math.round(idealR));
+    const targetAspectPerRow = sumAspect / R;
+
+    // --- FILLER LOGIC: Fill Header gaps with skins ---
+    let fillerImages: any[] = [];
+    let remainingSkins = [...midSkins];
+    let currentHRowAsp = 0;
+
+    header.forEach(h => {
+      currentHRowAsp += getAsp(h.imgElement);
+      if (currentHRowAsp >= targetAspectPerRow) currentHRowAsp = 0;
+    });
+
+    if (currentHRowAsp > 0 && currentHRowAsp < targetAspectPerRow && remainingSkins.length > 0) {
+      let needed = targetAspectPerRow - currentHRowAsp;
+      while (needed > 0 && remainingSkins.length > 0) {
+        const skin = remainingSkins.shift()!;
+        const asp = getAsp(skin.imgElement);
+        fillerImages.push(skin);
+        needed -= asp;
+      }
+    }
+
+    // Re-build finalVAll with fillers
+    const finalVAll: (ImageData & { section: SectionKey })[] = [
+      ...header.map(i => ({ ...i, section: 'header' as SectionKey })),
+      ...fillerImages.map(i => ({ ...i, section: 'header' as SectionKey, cellType: 'skin' as const })),
+      ...profile.map(i => ({ ...i, section: 'profile' as SectionKey })),
+      ...midVIP.map(i => ({ ...i, section: 'midVIP' as SectionKey, cellType: 'vip' as const })),
+      ...midWheel.map(i => ({ ...i, section: 'midWheel' as SectionKey, cellType: 'wheel' as const })),
+      ...remainingSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const })),
+      ...middle.map(i => ({ ...i, section: 'middle' as SectionKey, cellType: 'vip' as const })),
+      ...footer.map(i => ({ ...i, section: 'footer' as SectionKey, cellType: 'footer' as const }))
+    ].filter(i => i.imgElement);
 
     const rows: { items: any[], h: number, gaps: number[], isFull: boolean }[] = [];
-
-    const targetAspectPerRow = sumAspect / R;
     let currentItems: any[] = [];
     let currentAspect = 0;
     let itemsProcessed = 0;
 
-    for (let i = 0; i < vAll.length; i++) {
-      const item = vAll[i];
+    for (let i = 0; i < finalVAll.length; i++) {
+      const item = finalVAll[i];
       const img = item.imgElement!;
       const asp = img.naturalWidth / img.naturalHeight;
 
@@ -140,11 +173,22 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       currentAspect += asp;
       itemsProcessed++;
 
-      const isLastOfAll = itemsProcessed === vAll.length;
-      const alreadyFilledEnough = currentAspect >= targetAspectPerRow;
-      const isNotLastRowInPlan = rows.length < R - 1;
+      const isLastOfAll = itemsProcessed === finalVAll.length;
+      const nextItem = finalVAll[i + 1];
+      const mustBreak = nextItem && item.section === 'header' && nextItem.section !== 'header';
 
-      if (isLastOfAll || (alreadyFilledEnough && isNotLastRowInPlan)) {
+      // Advanced breaking logic to balance rows better
+      let shouldBreakNaturally = false;
+      if (!isLastOfAll && !mustBreak && rows.length < R - 1) {
+        const nextAsp = getAsp(nextItem.imgElement);
+        const distNow = Math.abs(currentAspect - targetAspectPerRow);
+        const distNext = Math.abs((currentAspect + nextAsp) - targetAspectPerRow);
+        if (currentAspect >= targetAspectPerRow || distNext > distNow) {
+          shouldBreakNaturally = true;
+        }
+      }
+
+      if (isLastOfAll || mustBreak || shouldBreakNaturally) {
         const gaps: number[] = [];
         let rowTotalGap = 0;
         for (let j = 0; j < currentItems.length; j++) {
@@ -163,9 +207,16 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
           rowTotalGap += g;
         }
 
-        const rh = (contentW - rowTotalGap) / currentAspect;
+        let rh = (contentW - rowTotalGap) / currentAspect;
+        let isFullWidth = true;
 
-        rows.push({ items: currentItems, h: rh, gaps, isFull: true });
+        // Still keep a small safeguard for extreme cases (e.g. 1 image in a huge row)
+        if (isLastOfAll && rh > baseTargetH * 3) {
+          rh = baseTargetH * 1.5;
+          isFullWidth = false;
+        }
+
+        rows.push({ items: currentItems, h: rh, gaps, isFull: isFullWidth });
         currentItems = [];
         currentAspect = 0;
       }
@@ -224,9 +275,12 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
         const itemW = item.aspect * rh;
         const isHeader = item.section === 'header';
+        const isProfile = item.section === 'profile';
+        const isSkinLike = item.cellType === 'skin' || item.cellType === 'footer';
 
-        const individualBorder = (isHeader || item.cellType === 'wheel') ? 1 : 0;
-        const bCol = isHeader ? '#ffffff' : borderColor;
+        // Header/Profile usually have individual borders, but if it's a "skinlike" filler, skip individual border
+        const individualBorder = ((isHeader && !isSkinLike) || isProfile || item.cellType === 'wheel') ? 1 : 0;
+        const bCol = (isHeader || isProfile) ? '#ffffff' : borderColor;
 
         const pX = (item.cellType === 'vip' || item.cellType === 'wheel') ? 4 : 0;
         const pY = pX;
@@ -238,7 +292,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
         let itemFit: string = fit;
         if (item.cellType === 'vip' || item.cellType === 'wheel') itemFit = 'contain';
-        else if (isHeader) itemFit = 'cover';
+        else if (isHeader || isProfile) itemFit = 'cover';
         else if (item.cellType === 'footer' || item.cellType === 'skin') itemFit = 'stretch';
 
         drawItem(ctx, item.imgElement, drawX, drawY, drawW, drawH, rad, itemFit, individualBorder, bCol);
@@ -383,7 +437,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
               <div
                 key={img.id}
                 className="th"
-                style={sKey === 'header' ? { border: '1px solid #ffffff' } : {}}
+                style={(sKey === 'header' || sKey === 'profile') ? { border: '1px solid #ffffff' } : {}}
               >
                 <img src={img.src} alt="" />
                 <span className="th-n">{i + 1}</span>
@@ -405,6 +459,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       <div className="wrap">
         <div className="sections-grid">
           <DropZoneSection sKey="header" label="1. Phần Đầu (Chữ nhật ngang)" sub="Kéo thả ảnh phần đầu vào đây" />
+          <DropZoneSection sKey="profile" label="1.1 Profile (Đầu hàng 2)" sub="Kéo thả ảnh profile vào đây" />
 
           <div style={{ padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <h3 style={{ margin: 0, fontSize: '13px', color: '#ffeb3b', textTransform: 'uppercase' }}>2. Phần Giữa</h3>
