@@ -8,7 +8,7 @@ interface ImageData {
   src: string;
   file: File;
   imgElement: HTMLImageElement | null;
-  cellType?: 'vip' | 'wheel' | 'skin';
+  cellType?: 'vip' | 'wheel' | 'skin' | 'footer';
 }
 
 type SectionKey = 'header' | 'midVIP' | 'midWheel' | 'midSkins' | 'middle' | 'footer';
@@ -28,10 +28,10 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   
   const [gap, setGap] = useState(0);
   const [rad, setRad] = useState(0);
-  const [bgc, setBgc] = useState('#0b1426'); // Xanh đậm của nền game Liên Quân
+  const [bgc, setBgc] = useState('#0b1426');
   const [pad, setPad] = useState(5);
   const [fit, setFit] = useState<'cover' | 'contain' | 'stretch' | 'original'>('cover');
-  const [borderColor, setBorderColor] = useState('#373a68'); // Viền xanh xám
+  const [borderColor, setBorderColor] = useState('#373a68');
   const [borderStyle, setBorderStyle] = useState<'solid' | 'gradient1'>('solid');
   const [borderWidth, setBorderWidth] = useState(1);
   const [showDim, setShowDim] = useState(false);
@@ -86,7 +86,17 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const renderCanvas = () => {
     const { header, midVIP, midWheel, midSkins, middle, footer } = sections;
     
-    if (header.length === 0 && middle.length === 0 && footer.length === 0 && midVIP.length === 0 && midWheel.length === 0 && midSkins.length === 0) {
+    // Thu thập tất cả ảnh hợp lệ thành 1 danh sách duy nhất để xử lý flow
+    const vAll: (ImageData & { section: SectionKey })[] = [
+      ...header.map(i => ({ ...i, section: 'header' as SectionKey })),
+      ...midVIP.map(i => ({ ...i, section: 'midVIP' as SectionKey, cellType: 'vip' as const })),
+      ...midWheel.map(i => ({ ...i, section: 'midWheel' as SectionKey, cellType: 'wheel' as const })),
+      ...midSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const })),
+      ...middle.map(i => ({ ...i, section: 'middle' as SectionKey, cellType: 'vip' as const })),
+      ...footer.map(i => ({ ...i, section: 'footer' as SectionKey, cellType: 'footer' as const }))
+    ].filter(i => i.imgElement);
+
+    if (vAll.length === 0) {
       alert('Vui lòng thêm ít nhất 1 ảnh!');
       return;
     }
@@ -96,261 +106,196 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // === TÍNH TOÁN CÁC BỤC === //
-    const w = canvasW;
+    // === THÔNG SỐ CƠ BẢN ===
+    const W = canvasW;
+    const innerPad = 8; // Khoảng cách giữa các ảnh (gap trong row)
+    const rowGap = gap > 0 ? gap : 8; // Sử dụng gap của người dùng nếu có, mặc định là 8
+    const contentW = W - pad * 2;
 
-    const computeSection = (sectionItems: ImageData[], cols: number, ratio: number, aw: number, colGap: number, rowGap: number) => {
-      const rows = Math.ceil(sectionItems.length / cols);
-      let blockH = 0;
-      const rowHeights: number[] = [];
-      const currentItemW = (aw - colGap * (cols - 1)) / cols;
-      
-      for (let r = 0; r < rows; r++) {
-        let rowH = 0;
-        if (ratio > 0) {
-          rowH = currentItemW * ratio;
-        } else {
-           for (let c = 0; c < cols; c++) {
-              const idx = r * cols + c;
-              if (idx < sectionItems.length && sectionItems[idx].imgElement) {
-                 const img = sectionItems[idx].imgElement!;
-                 let h = currentItemW * (img.naturalHeight / img.naturalWidth);
-                 if (isNaN(h) || h <= 0) h = currentItemW;
-                 if (h > rowH) rowH = h;
-              }
-           }
-           if (rowH === 0) rowH = currentItemW;
-        }
-        rowHeights.push(rowH);
-        blockH += rowH;
-      }
-      if (rows > 0) blockH += (rows - 1) * rowGap;
-      return { rows, rowHeights, blockH, cols, itemW: currentItemW };
-    };
-
-    const getBestCols = (len: number, target: number) => {
-      if (len <= 0) return target;
-      if (len <= target) return len;
-      
-      let bestCols = target;
-      let minEmptySlots = Infinity;
-      let minDiffFromTarget = Infinity;
-      
-      // Tìm trong khoảng từ target-5 đến target+3 để tìm số cột "đẹp" nhất
-      const minC = Math.max(1, target - 5);
-      const maxC = target + 5;
-      
-      for (let i = minC; i <= maxC; i++) {
-        const remainder = len % i;
-        const emptySlots = remainder === 0 ? 0 : (i - remainder);
-        const diffFromTarget = Math.abs(i - target);
-        
-        // Ưu tiên 1: Ít ô trống nhất ở hàng cuối
-        // Ưu tiên 2: Gần với con số target nhất
-        if (emptySlots < minEmptySlots || (emptySlots === minEmptySlots && diffFromTarget < minDiffFromTarget)) {
-          minEmptySlots = emptySlots;
-          minDiffFromTarget = diffFromTarget;
-          bestCols = i;
-        }
-        
-        // Nếu tìm được số chia hết (0 ô trống) và khá gần target (diff <= 3) thì chốt luôn
-        if (emptySlots === 0 && diffFromTarget <= 3) {
-          return i;
-        }
-      }
-      
-      return bestCols;
-    };
-
-
-    // TÍNH TOÁN CÁC BỤC VỚI ẢNH HỢP LỆ
-    const getValidItems = (items: ImageData[]) => items.filter(i => i.imgElement);
-    
-    const vHeader = getValidItems(header);
-    const vMidMerged = getValidItems([
-      ...midVIP.map(i => ({ ...i, cellType: 'vip' as const })),
-      ...midWheel.map(i => ({ ...i, cellType: 'wheel' as const })),
-      ...midSkins.map(i => ({ ...i, cellType: 'skin' as const })),
-      ...middle.map(i => ({ ...i, cellType: 'vip' as const }))
-    ]);
-    const vFooter = getValidItems(footer).map(i => ({ ...i, cellType: 'skin' as const }));
-
-    const headC = getBestCols(vHeader.length, 14);
-
-
-    const headPad = 5;
-    const awHead = w - pad * 2 - headPad * 2;
-    const headLayout = computeSection(vHeader, headC, 0, awHead, 8, 8);
-
-    const midC = getBestCols(vMidMerged.length, 21);
-    const midPad = 5;
-    const awMid = w - pad * 2 - midPad * 2;
-    const midLayout = computeSection(vMidMerged, midC, 0, awMid, 0, 8);
-
-    const footC = getBestCols(vFooter.length, 21);
-    const footLayout = computeSection(vFooter, footC, 0, awMid, 0, 8);
-
-    // TÍNH TỔNG CHIỀU CAO CANVAS CHÍNH XÁC
-    let totalH = pad * 2; 
-    const drawPlan: { items: ImageData[], layout: any, p: number }[] = [];
-    
-    if (vHeader.length > 0) drawPlan.push({ items: vHeader, layout: headLayout, p: headPad });
-    if (vMidMerged.length > 0) drawPlan.push({ items: vMidMerged, layout: midLayout, p: midPad });
-    if (vFooter.length > 0) drawPlan.push({ items: vFooter, layout: footLayout, p: midPad });
-
-    drawPlan.forEach((sec, idx) => {
-      totalH += sec.layout.blockH + sec.p * 2;
-      if (idx < drawPlan.length - 1) totalH += gap;
+    // === TÍNH TOÁN JUSTIFIED LAYOUT ===
+    // Để đạt được landscape (ví dụ tỉ lệ 1.6), ta tính toán targetHeight trung bình
+    let sumAspect = 0;
+    vAll.forEach(item => {
+      const img = item.imgElement!;
+      sumAspect += img.naturalWidth / img.naturalHeight;
     });
 
+    // Target Landscape Ratio (W/H)
+    const targetRatio = 1.77; // 16:9 cho đẹp
+    // Area = W * (W / targetRatio) = sumAspect * H^2
+    let targetH = Math.sqrt((contentW * contentW) / (sumAspect * targetRatio));
+    
+    // Giới hạn targetH để ảnh không quá nhỏ hoặc quá to
+    targetH = Math.max(120, Math.min(450, targetH));
 
+    // Nếu là footer hoặc middle, có thể muốn nhiều cột hơn -> giảm height
+    // Nhưng đề bài yêu cầu "đẩy lên cùng hàng", nên ta dùng chung 1 logic flow.
 
-    // === AUTO SCALE LIMIT PROTECTION TO PREVENT BROWSER OOM CATASTROPHES ===
+    const rows: { items: any[], h: number, gaps: number[] }[] = [];
+    let currentRow: any[] = [];
+    let currentRowAspect = 0;
+    let currentRowGaps: number[] = [];
+
+    vAll.forEach((item, index) => {
+      const img = item.imgElement!;
+      const aspect = img.naturalWidth / img.naturalHeight;
+      
+      // Tính gap với ảnh trước đó trong hàng
+      let gapWithPrev = 0;
+      if (currentRow.length > 0) {
+        const prev = currentRow[currentRow.length - 1];
+        // Nếu cả 2 đều là skin hoặc footer (nhóm viền chung), gap là 0
+        if ((prev.cellType === 'skin' || prev.cellType === 'footer') && 
+            (item.cellType === 'skin' || item.cellType === 'footer')) {
+          gapWithPrev = 0;
+        } else {
+          gapWithPrev = innerPad;
+        }
+      }
+
+      currentRow.push({ ...item, aspect });
+      currentRowAspect += aspect;
+      currentRowGaps.push(gapWithPrev);
+
+      const totalGap = currentRowGaps.reduce((a, b) => a + b, 0);
+      const expectedW = currentRowAspect * targetH + totalGap;
+
+      if (expectedW > contentW || index === vAll.length - 1) {
+        if (currentRow.length > 0) {
+          const isLastRow = index === vAll.length - 1;
+          const rowTotalGap = currentRowGaps.reduce((a, b) => a + b, 0);
+          let rowH = (contentW - rowTotalGap) / currentRowAspect;
+          
+          if (isLastRow && rowH > targetH * 1.5) rowH = targetH;
+
+          rows.push({ items: currentRow, h: rowH, gaps: currentRowGaps });
+          currentRow = [];
+          currentRowAspect = 0;
+          currentRowGaps = [];
+        }
+      }
+    });
+
+    // TÍNH TỔNG CHIỀU CAO
+    let totalH = pad * 2;
+    rows.forEach((row, i) => {
+      totalH += row.h;
+      if (i < rows.length - 1) totalH += rowGap;
+    });
+
+    // === AUTO SCALE LIMIT PROTECTION ===
     const MAX_CANVAS_DIM = 16000;
     let scaleF = 1;
-    if (totalH > MAX_CANVAS_DIM || w > MAX_CANVAS_DIM) {
-      scaleF = Math.min(MAX_CANVAS_DIM / Math.max(1, totalH), MAX_CANVAS_DIM / Math.max(1, w));
+    if (totalH > MAX_CANVAS_DIM || W > MAX_CANVAS_DIM) {
+      scaleF = Math.min(MAX_CANVAS_DIM / totalH, MAX_CANVAS_DIM / W);
     }
 
-    const finalW = Math.max(1, Math.ceil(w * scaleF));
-    const finalH = Math.max(1, Math.ceil(totalH * scaleF));
+    canvas.width = Math.ceil(W * scaleF);
+    canvas.height = Math.ceil(totalH * scaleF);
 
-    // UPDATE CANVAS SIZE
-    canvas.width = finalW;
-    canvas.height = finalH;
-
-    // FILL NỀN
     ctx.fillStyle = bgc;
-    ctx.fillRect(0, 0, finalW, finalH);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    if (scaleF !== 1) {
-      ctx.scale(scaleF, scaleF);
-    }
+    ctx.scale(scaleF, scaleF);
 
-    // KẺ VIỀN CANVAS TO
+    // KẺ VIỀN CANVAS
     if (borderWidth > 0) {
-      if (borderStyle === 'solid') {
-        ctx.strokeStyle = borderColor;
-      } else if (borderStyle === 'gradient1') {
-        const grad = ctx.createLinearGradient(0, 0, w, totalH);
-        grad.addColorStop(0, '#ff0cfa'); // Pink/Magenta
-        grad.addColorStop(1, '#00f6ff'); // Cyan
-        ctx.strokeStyle = grad;
+      ctx.lineWidth = borderWidth;
+      if (borderStyle === 'solid') ctx.strokeStyle = borderColor;
+      else {
+        const g = ctx.createLinearGradient(0, 0, W, totalH);
+        g.addColorStop(0, '#ff0cfa'); g.addColorStop(1, '#00f6ff');
+        ctx.strokeStyle = g;
       }
-      
-      const bw = borderWidth;
-      ctx.lineWidth = bw;
-      
       ctx.beginPath();
-      roundRectPath(ctx, bw / 2, bw / 2, w - bw, totalH - bw, rad);
+      roundRectPath(ctx, borderWidth/2, borderWidth/2, W - borderWidth, totalH - borderWidth, rad);
       ctx.stroke();
     }
 
+    // VẼ Từng Hàng
     let currentY = pad;
-    
-    // VẼ CÁC PHẦN THEO KẾ HOẠCH
-    drawPlan.forEach((plan, idx) => {
-       const isHeader = idx === 0 && plan.items === vHeader;
-       const colGap = isHeader ? 8 : 0;
-       const rowGap = 8;
-       const brColor = isHeader ? 'rgba(255, 255, 255)' : '#ffffff';
-       
-       // my bắt đầu vẽ ở trong section
-       let my = currentY + plan.p;
-       const cW = plan.layout.itemW;
+    rows.forEach((row) => {
+      let currentX = pad;
+      const rh = row.h;
 
-       for (let r = 0; r < plan.layout.rows; r++) {
-          const rh = plan.layout.rowHeights[r];
-          const actualItemsInRow = Math.min(plan.layout.cols, plan.items.length - r * plan.layout.cols);
-          if (actualItemsInRow <= 0) break;
+      // Group các Skin để vẽ viền chung nếu chúng đứng cạnh nhau
+      let skinGroup: { x: number, w: number } | null = null;
 
-          // -- LOGIC JUSTIFY: Nếu hàng cuối gần đầy, cho nó dãn ra khít 100% --
-          const isLastRow = r === plan.layout.rows - 1;
-          const needsJustify = isLastRow && actualItemsInRow < plan.layout.cols && actualItemsInRow > plan.layout.cols * 0.7;
-          
-          let cW_row = cW;
-          if (needsJustify) {
-             cW_row = (awMid + (isHeader ? (awHead - awMid) : 0) - colGap * (actualItemsInRow - 1)) / actualItemsInRow;
-          }
+      for (let i = 0; i < row.items.length; i++) {
+        const item = row.items[i];
+        const gapBefore = row.gaps[i];
+        currentX += gapBefore;
 
-          let skinGroupStartX = -1;
-          let skinGroupEndX = -1;
+        const itemW = item.aspect * rh;
+        const isHeader = item.section === 'header';
+        
+        const individualBorder = (isHeader || item.cellType === 'wheel') ? 1 : 0;
+        const bCol = isHeader ? '#ffffff' : borderColor;
+        
+        const pX = (item.cellType === 'vip' || item.cellType === 'wheel') ? 4 : 0;
+        const pY = pX;
+        
+        const drawX = Math.round(currentX + pX);
+        const drawY = Math.round(currentY + pY);
+        const drawW = Math.round(itemW - pX * 2);
+        const drawH = Math.round(rh - pY * 2);
 
-          for (let c = 0; c < actualItemsInRow; c++) {
-             const idxItem = r * plan.layout.cols + c;
-             if (idxItem < plan.items.length) {
-                const item = plan.items[idxItem];
-                const padX = (item.cellType === 'vip' || item.cellType === 'wheel') ? 4 : 0;
-                const padY = 0;
-                const individualBorder = (isHeader || item.cellType === 'wheel') ? 1 : 0;
-                const borderCol = isHeader ? '#ffffff' : borderColor;
+        let itemFit: string = fit; 
+        if (item.cellType === 'vip' || item.cellType === 'wheel') itemFit = 'contain';
+        else if (isHeader) itemFit = 'cover';
+        else if (item.cellType === 'footer' || item.cellType === 'skin') itemFit = 'stretch';
 
-                const startX = pad + plan.p + c * (cW_row + colGap);
-                const startY = my;
-                
-                const x = Math.round(startX) + padX;
-                const y = Math.round(startY) + padY;
-                const w = Math.round(startX + cW_row) - Math.round(startX) - padX*2;
-                const h = Math.round(my + rh) - Math.round(my) - padY*2;
+        drawItem(ctx, item.imgElement, drawX, drawY, drawW, drawH, rad, itemFit, individualBorder, bCol);
 
-                const itemFit = (item.cellType === 'vip' || item.cellType === 'wheel') ? 'contain' : 'stretch';
-                drawItem(ctx, item.imgElement, x, y, w, h, rad, itemFit, individualBorder, borderCol);
+        // Logic Viền Chung cho Skin
+        if (item.cellType === 'skin' || item.cellType === 'footer') {
+           if (!skinGroup) {
+             skinGroup = { x: currentX, w: itemW };
+           } else {
+             skinGroup.w += itemW + gapBefore;
+           }
+        } else {
+           if (skinGroup) {
+              drawGroupBorder(ctx, skinGroup.x, currentY, skinGroup.w, rh, rad, '#ffffff');
+              skinGroup = null;
+           }
+        }
 
+        currentX += itemW;
+      }
 
+      const finalSG = skinGroup;
+      if (finalSG) {
+         drawGroupBorder(ctx, finalSG.x, currentY, finalSG.w, rh, rad, '#ffffff');
+      }
 
-                if (item.cellType === 'skin') {
-                   if (skinGroupStartX === -1) skinGroupStartX = startX;
-                   skinGroupEndX = startX + cW_row;
-                }
-             }
-          }
-
-
-          if (skinGroupStartX !== -1) {
-            const rowX = Math.round(skinGroupStartX);
-            const rowY = Math.round(my);
-            const rowW = Math.round(skinGroupEndX) - rowX;
-            const rowH = Math.round(my + rh) - rowY;
-
-            ctx.save();
-            ctx.beginPath();
-            const rowBorderW = 1;
-            const bHalf = rowBorderW / 2;
-            const br = rad + bHalf;
-            roundRectPath(ctx, rowX - bHalf, rowY - bHalf, rowW + rowBorderW, rowH + rowBorderW, br);
-            ctx.lineWidth = rowBorderW;
-            ctx.strokeStyle = brColor;
-            ctx.stroke();
-            ctx.restore();
-          }
-
-          my += rh + rowGap;
-       }
-       
-       // Cập nhật currentY cho section tiếp theo
-       currentY += plan.layout.blockH + plan.p * 2;
-       if (idx < drawPlan.length - 1) currentY += gap;
+      currentY += rh + rowGap;
     });
 
-
-    ctx.restore(); // Restore limits
-
+    ctx.restore();
     setHasRendered(true);
+  };
+
+  const drawGroupBorder = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, color: string) => {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    roundRectPath(ctx, x, y, w, h, r);
+    ctx.stroke();
+    ctx.restore();
   };
 
   const drawItem = (ctx: CanvasRenderingContext2D, img: HTMLImageElement | null, x: number, y: number, w: number, h: number, r: number, drawFit: string, borderW: number = 0, borderColor: string = '') => {
     if (!img) return;
     ctx.save();
-    
     roundRectPath(ctx, x, y, w, h, r);
     ctx.clip();
 
-    const iw = img.naturalWidth;
-    const ih = img.naturalHeight;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
     let sc, dw, dh;
 
-    // Scale
     if (drawFit === 'stretch') {
       ctx.drawImage(img, x, y, w, h);
     } else if (drawFit === 'contain') {
@@ -365,34 +310,30 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       dw = iw * sc; dh = ih * sc;
       ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
     }
-    
     ctx.restore();
 
     if (borderW > 0) {
-      const bHalf = borderW / 2;
       ctx.save();
-      ctx.beginPath();
-      // Viền bọc ngoài
-      const br = r + bHalf;
-      roundRectPath(ctx, x - bHalf, y - bHalf, w + borderW, h + borderW, br);
-      ctx.lineWidth = borderW;
       ctx.strokeStyle = borderColor;
+      ctx.lineWidth = borderW;
+      ctx.beginPath();
+      roundRectPath(ctx, x, y, w, h, r);
       ctx.stroke();
       ctx.restore();
     }
 
     if (showDim) {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(x, y + h - 24, w, 24);
+      ctx.fillRect(x, y + h - 20, w, 20);
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+      ctx.font = '10px Arial';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${iw} × ${ih}`, x + w / 2, y + h - 12);
+      ctx.fillText(`${iw}x${ih}`, x + w/2, y + h - 7);
     }
   };
 
   const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+    if (r < 0) r = 0;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
