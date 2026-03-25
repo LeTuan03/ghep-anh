@@ -31,9 +31,9 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const [bgc, setBgc] = useState('#0b1426'); // Xanh đậm của nền game Liên Quân
   const [pad, setPad] = useState(5);
   const [fit, setFit] = useState<'cover' | 'contain' | 'stretch' | 'original'>('cover');
-  const [borderColor, setBorderColor] = useState('#fff'); // Viền xanh xám
+  const [borderColor, setBorderColor] = useState('#373a68'); // Viền xanh xám
   const [borderStyle, setBorderStyle] = useState<'solid' | 'gradient1'>('solid');
-  const [borderWidth, setBorderWidth] = useState(4);
+  const [borderWidth, setBorderWidth] = useState(1);
   const [showDim, setShowDim] = useState(false);
   
   const [isDragOver, setIsDragOver] = useState<SectionKey | null>(null);
@@ -283,7 +283,8 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
                 const item = plan.items[idxItem];
                 const padX = (item.cellType === 'vip' || item.cellType === 'wheel') ? 4 : 0;
                 const padY = 0;
-                const individualBorder = item.cellType === 'wheel' ? 1 : 0;
+                const individualBorder = (isHeader || item.cellType === 'wheel') ? 1 : 0;
+                const borderCol = isHeader ? '#ffffff' : borderColor;
 
                 const startX = pad + plan.p + c * (cW_row + colGap);
                 const startY = my;
@@ -294,7 +295,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
                 const h = Math.round(my + rh) - Math.round(my) - padY*2;
 
                 const itemFit = (item.cellType === 'vip' || item.cellType === 'wheel') ? 'contain' : 'stretch';
-                drawItem(ctx, item.imgElement, x, y, w, h, rad, itemFit, individualBorder, borderColor);
+                drawItem(ctx, item.imgElement, x, y, w, h, rad, itemFit, individualBorder, borderCol);
 
 
 
@@ -445,7 +446,11 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         {sections[sKey].length > 0 && (
           <div className="thumbs">
             {sections[sKey].map((img, i) => (
-              <div key={img.id} className="th">
+              <div 
+                key={img.id} 
+                className="th" 
+                style={sKey === 'header' ? { border: '1px solid #ffffff' } : {}}
+              >
                 <img src={img.src} alt="" />
                 <span className="th-n">{i + 1}</span>
                 <div className="th-x" onClick={() => handleRemoveImage(sKey, i)}>×</div>
@@ -460,9 +465,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   return (
     <div className="container">
       <header>
-        <h1>Trình Ghép Ảnh Siêu Cấp</h1>
-        <p>Tự động ghép dọc các phần Ảnh liền mạch hoàn hảo</p>
-        <div style={{color:'var(--pink)', fontSize:'0.8rem', marginTop:'8px'}}>Chỉ cần tải ảnh lên từng phần và bấm "Bắt đầu Ghép" để xuất ảnh hoàn chỉnh.</div>
         {onLogout && <button className="logout-btn" onClick={onLogout}>Đăng xuất</button>}
       </header>
       
@@ -471,10 +473,10 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
           <DropZoneSection sKey="header" label="1. Phần Đầu (Chữ nhật ngang)" sub="Kéo thả ảnh phần đầu vào đây" />
           
           <div style={{ padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-             <h3 style={{ margin: 0, fontSize: '13px', color: '#ffeb3b', textTransform: 'uppercase' }}>2. Phần Giữa (Lưới 21 Cột Liên Tục)</h3>
+             <h3 style={{ margin: 0, fontSize: '13px', color: '#ffeb3b', textTransform: 'uppercase' }}>2. Phần Giữa</h3>
              <DropZoneSection sKey="midVIP" label="2.1 Ảnh KHÔNG viền" sub="Phù hợp: Bảng Rank Lớn, Avatar... (Cách rời)" />
-             <DropZoneSection sKey="midWheel" label="2.2 Ảnh CỐ viền rời" sub="Phù hợp: Các vòng quay nhỏ... (Viền lẻ)" />
-             <DropZoneSection sKey="midSkins" label="2.3 Nhóm ảnh viền chung" sub="Phù hợp: Tướng đặt sát nhau cuối hàng" />
+             {/* <DropZoneSection sKey="midWheel" label="2.2 Ảnh CỐ viền rời" sub="Phù hợp: Các vòng quay nhỏ... (Viền lẻ)" /> */}
+             <DropZoneSection sKey="midSkins" label="2.2 Nhóm ảnh viền chung" sub="Phù hợp: Tướng đặt sát nhau cuối hàng" />
           </div>
 
           <DropZoneSection sKey="footer" label="3. Phần Cuối (Lưới 21 cột)" sub="Kéo thả ảnh phần cuối vào đây" />
