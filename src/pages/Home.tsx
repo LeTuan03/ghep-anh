@@ -35,7 +35,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const [borderColor, setBorderColor] = useState('#373a68');
   const [borderStyle, setBorderStyle] = useState<'solid' | 'gradient1'>('solid');
   const [borderWidth, setBorderWidth] = useState(1);
-  const [showDim, setShowDim] = useState(false);
 
   // Trang phục tiến hóa
   const [evoButterfly, setEvoButterfly] = useState('khongco');
@@ -374,15 +373,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       ctx.stroke();
       ctx.restore();
     }
-
-    if (showDim) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-      ctx.fillRect(x, y + h - 20, w, 20);
-      ctx.fillStyle = '#fff';
-      ctx.font = '10px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${iw}x${ih}`, x + w / 2, y + h - 7);
-    }
   };
 
   const roundRectPath = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
@@ -469,12 +459,12 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
           <div style={{ padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <h3 style={{ margin: 0, fontSize: '13px', color: '#ffeb3b', textTransform: 'uppercase' }}>2. Phần Giữa</h3>
-            <DropZoneSection sKey="midVIP" label="2.1 Ảnh KHÔNG viền" sub="Phù hợp: Bảng Rank Lớn, Avatar... (Cách rời)" />
+            <DropZoneSection sKey="midVIP" label="2.1 Ảnh KHÔNG viền" sub="" />
             {/* <DropZoneSection sKey="midWheel" label="2.2 Ảnh CỐ viền rời" sub="Phù hợp: Các vòng quay nhỏ... (Viền lẻ)" /> */}
-            <DropZoneSection sKey="midSkins" label="2.2 Nhóm ảnh viền chung" sub="Phù hợp: Tướng đặt sát nhau cuối hàng" />
+            <DropZoneSection sKey="midSkins" label="2.2 Nhóm ảnh viền chung" sub="" />
           </div>
 
-          <DropZoneSection sKey="footer" label="3. Phần Cuối (Lưới 21 cột)" sub="Kéo thả ảnh phần cuối vào đây" />
+          <DropZoneSection sKey="footer" label="3. Phần Cuối" sub="" />
         </div>
 
         <div className="opts-group">
@@ -495,21 +485,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
               <div className="cg"><label>Màu viền đơn</label><input type="color" value={borderColor} onChange={e => setBorderColor(e.target.value)} /></div>
             )}
             <div className="cg"><label>Độ dày viền (px)</label><input type="number" value={borderWidth} min={0} max={200} onChange={e => setBorderWidth(Number(e.target.value) || 0)} /></div>
-            <div className="cg"><label>Hiển thị ảnh</label>
-              <select value={fit} onChange={e => setFit(e.target.value as any)}>
-                <option value="cover">Cắt tỉ lệ (Cover)</option>
-                <option value="contain">Nguyên gốc (Contain)</option>
-                <option value="stretch">Kéo giãn (Stretch)</option>
-                <option value="original">Kích thước thật (Original)</option>
-              </select>
-            </div>
-            <div className="cg">
-              <label>Hiện chữ</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#aeb5cc', cursor: 'pointer', fontWeight: 'normal', height: '32px' }}>
-                <input type="checkbox" checked={showDim} onChange={e => setShowDim(e.target.checked)} style={{ width: 'auto', margin: 0, cursor: 'pointer' }} />
-                Hiện WxH
-              </label>
-            </div>
           </div>
         </div>
 
