@@ -37,6 +37,12 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
   const [borderWidth, setBorderWidth] = useState(1);
   const [showDim, setShowDim] = useState(false);
 
+  // Trang phục tiến hóa
+  const [evoButterfly, setEvoButterfly] = useState('khongco');
+  const [evoNgoKhong, setEvoNgoKhong] = useState('khongco');
+  const [evoValhein, setEvoValhein] = useState('khongco');
+  const [evoNakroth, setEvoNakroth] = useState('khongco');
+
   const [isDragOver, setIsDragOver] = useState<SectionKey | null>(null);
   const [hasRendered, setHasRendered] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -507,7 +513,51 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
           </div>
         </div>
 
-
+        <div className="opts-group">
+          <div className="opts-title">TRANG PHỤC TIẾN HÓA (chọn nếu có)</div>
+          <div className="opts-row">
+            <div className="cg"><label>Butterfly</label>
+              <select value={evoButterfly} onChange={e => setEvoButterfly(e.target.value)}>
+                <option value="khongco">Không có</option>
+                <option value="butterflyii">Bậc II</option>
+                <option value="butterflyiii">Bậc III</option>
+                <option value="butterflyiv">Bậc IV</option>
+                <option value="butterflyv">Bậc V</option>
+                <option value="butterflymax">MAX tiến hóa</option>
+              </select>
+            </div>
+            <div className="cg"><label>Ngộ Không</label>
+              <select value={evoNgoKhong} onChange={e => setEvoNgoKhong(e.target.value)}>
+                <option value="khongco">Không có</option>
+                <option value="ngokhongii">Bậc II</option>
+                <option value="ngokhongiii">Bậc III</option>
+                <option value="ngokhongiv">Bậc IV</option>
+                <option value="ngokhongv">Bậc V</option>
+                <option value="ngokhongmax">MAX tiến hóa</option>
+              </select>
+            </div>
+            <div className="cg"><label>Valhein</label>
+              <select value={evoValhein} onChange={e => setEvoValhein(e.target.value)}>
+                <option value="khongco">Không có</option>
+                <option value="valheinii">Bậc II</option>
+                <option value="valheiniii">Bậc III</option>
+                <option value="valheiniv">Bậc IV</option>
+                <option value="valheinv">Bậc V</option>
+                <option value="valheinmax">MAX tiến hóa</option>
+              </select>
+            </div>
+            <div className="cg"><label>Nakroth</label>
+              <select value={evoNakroth} onChange={e => setEvoNakroth(e.target.value)}>
+                <option value="khongco">Không có</option>
+                <option value="nakrothii">Bậc II</option>
+                <option value="nakrothiii">Bậc III</option>
+                <option value="nakrothiv">Bậc IV</option>
+                <option value="nakrothv">Bậc V</option>
+                <option value="nakrothmax">MAX tiến hóa</option>
+              </select>
+            </div>
+          </div>
+        </div>
 
         <div className="btns">
           <button className="b-go" onClick={renderCanvas}>
