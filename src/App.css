@@ -91,17 +91,6 @@ header p {
   font-size: 0.77rem;
 }
 
-.ctrls {
-  display: grid; 
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px; 
-  background: var(--panel); 
-  border: 1px solid var(--border);
-  border-radius: 10px; 
-  padding: 16px; 
-  margin-bottom: 16px;
-}
-
 .cg label { 
   display: block; 
   font-size: 0.7rem; 
@@ -154,8 +143,6 @@ button {
   transition: all 0.18s; 
 }
 
-.b-up { background: linear-gradient(135deg, var(--cyan), #0080ff); color: #000; box-shadow: 0 0 16px rgba(0,240,255,0.3); }
-.b-up:hover { transform: translateY(-2px); }
 .b-go { background: var(--purple); color: #fff; }
 .b-go:hover { transform: translateY(-2px); }
 .b-dl { background: #27de6d; color: #000; }
@@ -186,6 +173,7 @@ button {
 
 .th:hover { border-color: var(--cyan); transform: scale(1.07); }
 .th.drag-on { opacity: 0.35; }
+.th.th-bordered { border: 1px solid #ffffff; }
 .th img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 
 .th-x { 
@@ -205,6 +193,9 @@ button {
   cursor: pointer; 
   opacity: 0; 
   transition: opacity 0.15s; 
+  border: none;
+  padding: 0;
+  line-height: 1;
 }
 .th:hover .th-x { opacity: 1; }
 
@@ -232,6 +223,12 @@ button {
   padding: 14px;
   display: flex;
   flex-direction: column;
+  max-height: 500px;
+  overflow-y: scroll;
+}
+
+.section-box::-webkit-scrollbar {
+  width: 0px;
 }
 
 .section-label {
@@ -242,6 +239,23 @@ button {
   text-transform: uppercase;
   margin-bottom: 10px;
   letter-spacing: 1px;
+}
+
+.section-group {
+  padding: 12px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section-group-title {
+  margin: 0;
+  font-size: 13px;
+  color: #ffeb3b;
+  text-transform: uppercase;
 }
 
 .dz-mini {
@@ -314,6 +328,11 @@ canvas {
   display: none; 
 }
 
+.preview-canvas {
+  display: block;
+  box-shadow: 0 0 40px rgba(0, 240, 255, 0.12);
+}
+
 .ph { 
   color: var(--sub); 
   font-size: 0.84rem; 
@@ -341,23 +360,6 @@ canvas {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-}
-.opts-row.split-3 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-.opts-col {
-  background: rgba(13, 17, 23, 0.5);
-  padding: 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-.opts-col h4 {
-  font-size: 0.75rem;
-  color: #aeb5cc;
-  margin-bottom: 10px;
-  text-transform: uppercase;
 }
 .opts-row .cg {
   flex: 1 1 140px;
