@@ -26,6 +26,7 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
   // Settings layout khít 100% bề ngang
   const [canvasW, setCanvasW] = useState(1920);
+  const [canvasH, setCanvasH] = useState(1080);
 
   const [gap, setGap] = useState(0);
   const [rad, setRad] = useState(0);
@@ -114,50 +115,110 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
     const getAsp = (img: HTMLImageElement | null) => img ? img.naturalWidth / img.naturalHeight : 0;
 
-    let sumAspect = 0;
-    vAll.forEach(item => {
-      sumAspect += getAsp(item.imgElement);
-    });
+    // --- FILLER/GRID BALANCE LOGIC ---
+    const balance = (imgs: ImageData[], cols: number, fillerSource: ImageData[] = imgs) => {
+      if (imgs.length === 0) return [];
+      const remainder = imgs.length % cols;
+      if (remainder === 0) return [...imgs];
 
-    const targetRatio = 1.7777;
-    let baseTargetH = Math.sqrt((contentW * contentW) / (sumAspect * targetRatio));
-    baseTargetH = Math.max(35, Math.min(600, baseTargetH));
+      if (remainder < cols / 2) {
+        // Ít hơn 1 nửa: Bỏ luôn những ảnh thừa đó
+        return imgs.slice(0, imgs.length - remainder);
+      } else {
+        // Nhiều hơn hoặc bằng 1 nửa: Lấy tương ứng số ảnh ở đầu
+        const needed = cols - remainder;
+        const res = [...imgs];
+        for (let i = 0; i < needed; i++) {
+          const originalImg = fillerSource[i % fillerSource.length];
+          res.push({
+            ...originalImg,
+            id: 'fill-' + Math.random().toString(36).substr(2, 5)
+          });
+        }
+        return res;
+      }
+    };
 
-    const idealR = sumAspect / (contentW / baseTargetH);
-    const R = Math.max(1, Math.round(idealR));
+    // 1. Calculate target aspect per row to hit EXACTLY canvasW x canvasH
+    const sumAspect = vAll.reduce((sum, item) => sum + getAsp(item.imgElement), 0);
+    const canvasRatio = W / canvasH;
+    const idealRows = Math.sqrt(sumAspect / canvasRatio);
+    const R = Math.max(1, Math.round(idealRows));
     const targetAspectPerRow = sumAspect / R;
 
-    // --- FILLER LOGIC: Fill Header gaps with skins ---
-    let fillerImages: any[] = [];
-    let remainingSkins = [...midSkins];
-    let currentHRowAsp = 0;
+    // Estimate based target height for specific sections
+    const baseTargetH = W / targetAspectPerRow;
 
+    // Use dynamic columns for skins/body sections to align with the target HD height
+    const skinAspects = midSkins.map(i => getAsp(i.imgElement)).filter(a => a > 0);
+    const avgSkinAsp = skinAspects.length > 0 ? (skinAspects.reduce((a, b) => a + b, 0) / skinAspects.length) : 0.75;
+    const optimalCols = Math.max(2, Math.round(targetAspectPerRow / avgSkinAsp));
+
+    // 2. Process Header: Decide whether to fill or trim the trailing row based on aspect ratio
+    let finalHeader = [...header];
+    let trailingHeaderItems: ImageData[] = [];
+    let hRowAsp = 0;
     header.forEach(h => {
-      currentHRowAsp += getAsp(h.imgElement);
-      if (currentHRowAsp >= targetAspectPerRow) currentHRowAsp = 0;
+      let asp = getAsp(h.imgElement);
+      hRowAsp += asp;
+      trailingHeaderItems.push(h);
+      if (hRowAsp >= targetAspectPerRow) {
+        hRowAsp = 0;
+        trailingHeaderItems = [];
+      }
     });
 
-    if (currentHRowAsp > 0 && currentHRowAsp < targetAspectPerRow && remainingSkins.length > 0) {
-      let needed = targetAspectPerRow - currentHRowAsp;
-      while (needed > 0 && remainingSkins.length > 0) {
-        const skin = remainingSkins.shift()!;
-        const asp = getAsp(skin.imgElement);
-        fillerImages.push(skin);
-        needed -= asp;
+    let fillerForHeader: ImageData[] = [];
+    let skinPool = [...midSkins];
+
+    if (hRowAsp > 0) {
+      if (hRowAsp < targetAspectPerRow * 0.5) {
+        // Less than 50% complete: Trim the trailing row
+        finalHeader = header.slice(0, header.length - trailingHeaderItems.length);
+        hRowAsp = 0;
+      } else {
+        // 50% or more: Fill the trailing row as before
+        let needed = targetAspectPerRow - hRowAsp;
+        while (needed > 0 && skinPool.length > 0) {
+          const s = skinPool.shift()!;
+          fillerForHeader.push(s);
+          needed -= getAsp(s.imgElement);
+        }
+        if (needed > 0 && finalHeader.length > 0) {
+          while (needed > 0) {
+            const h = finalHeader[0];
+            fillerForHeader.push(h);
+            needed -= getAsp(h.imgElement);
+            if (fillerForHeader.length > 40) break;
+          }
+        }
       }
     }
 
-    // Re-build finalVAll with fillers
-    const finalVAll: (ImageData & { section: SectionKey })[] = [
-      ...header.map(i => ({ ...i, section: 'header' as SectionKey })),
-      ...fillerImages.map(i => ({ ...i, section: 'header' as SectionKey, cellType: 'skin' as const })),
-      ...profile.map(i => ({ ...i, section: 'profile' as SectionKey })),
-      ...midVIP.map(i => ({ ...i, section: 'midVIP' as SectionKey, cellType: 'vip' as const })),
-      ...midWheel.map(i => ({ ...i, section: 'midWheel' as SectionKey, cellType: 'wheel' as const })),
-      ...remainingSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const })),
-      ...middle.map(i => ({ ...i, section: 'middle' as SectionKey, cellType: 'vip' as const })),
-      ...footer.map(i => ({ ...i, section: 'footer' as SectionKey, cellType: 'footer' as const }))
+    // 3. Consolidated Body Balancing: Balance all grid-sharing sections as one sequence
+    const bodyPool = [
+      ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
+      ...midVIP.map(i => ({ ...i, section: 'midVIP' as SectionKey, cellType: 'vip' as const, gridCols: optimalCols })),
+      ...midWheel.map(i => ({ ...i, section: 'midWheel' as SectionKey, cellType: 'wheel' as const, gridCols: optimalCols })),
+      ...skinPool.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })),
+      ...middle.map(i => ({ ...i, section: 'middle' as SectionKey, cellType: 'vip' as const, gridCols: optimalCols }))
+    ];
+
+    const balancedBody = balance(bodyPool, optimalCols, midSkins.length > 0 ? midSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })) : bodyPool);
+    const bFooter = balance(footer, optimalCols, footer);
+
+    // Re-build final list using the balanced body sequence
+    const finalVAll: (ImageData & { section: SectionKey; gridCols: number })[] = [
+      ...finalHeader.map(i => ({ ...i, section: 'header' as SectionKey, gridCols: 0 })),
+      ...fillerForHeader.map(i => ({ ...i, section: 'header' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })),
+      ...balancedBody.map(i => ({ ...itemScale(i), section: (i as any).section, cellType: (i as any).cellType, gridCols: optimalCols })),
+      ...bFooter.map(i => ({ ...itemScale(i), section: 'footer' as SectionKey, cellType: 'footer' as const, gridCols: optimalCols }))
     ].filter(i => i.imgElement);
+
+    // Grid layout is now handled by mustBreak logic per section
+
+    // Helper for minor properties
+    function itemScale(i: ImageData) { return i; }
 
     const rows: { items: any[], h: number, gaps: number[], isFull: boolean }[] = [];
     let currentItems: any[] = [];
@@ -175,12 +236,19 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
       const isLastOfAll = itemsProcessed === finalVAll.length;
       const nextItem = finalVAll[i + 1];
-      const mustBreak = nextItem && item.section === 'header' && nextItem.section !== 'header';
+      const nextSection = nextItem ? nextItem.section : null;
+      const isGrid = item.gridCols > 0;
+      const isBody = nextSection && (nextSection === 'midVIP' || nextSection === 'midWheel' || nextSection === 'midSkins' || nextSection === 'middle');
+      
+      const mustBreak = nextItem && (
+        (item.section !== nextSection && !(item.section === 'profile' && isBody)) ||
+        (isGrid && currentItems.length >= item.gridCols)
+      );
 
-      // Advanced breaking logic to balance rows better
+      // Advanced breaking logic for justified rows (header/profile)
       let shouldBreakNaturally = false;
-      if (!isLastOfAll && !mustBreak && rows.length < R - 1) {
-        const nextAsp = getAsp(nextItem.imgElement);
+      if (!isLastOfAll && !mustBreak && !isGrid) {
+        const nextAsp = getAsp(nextItem ? nextItem.imgElement : null);
         const distNow = Math.abs(currentAspect - targetAspectPerRow);
         const distNext = Math.abs((currentAspect + nextAsp) - targetAspectPerRow);
         if (currentAspect >= targetAspectPerRow || distNext > distNow) {
@@ -211,8 +279,9 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         let isFullWidth = true;
 
         // Still keep a small safeguard for extreme cases (e.g. 1 image in a huge row)
-        if (isLastOfAll && rh > baseTargetH * 3) {
-          rh = baseTargetH * 1.5;
+        const isGridRow = currentItems.length > 0 && currentItems[0].gridCols > 0;
+        if ((isGridRow || isLastOfAll) && rh > baseTargetH * 1.8) {
+          rh = baseTargetH;
           isFullWidth = false;
         }
 
@@ -221,6 +290,8 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         currentAspect = 0;
       }
     }
+
+    // Per-section balancing now handles trailing rows more precisely
 
     let totalH = pad * 2;
     rows.forEach((row, i) => {
@@ -292,8 +363,8 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
 
         let itemFit: string = fit;
         if (item.cellType === 'vip' || item.cellType === 'wheel') itemFit = 'contain';
-        else if (isHeader || isProfile) itemFit = 'cover';
         else if (item.cellType === 'footer' || item.cellType === 'skin') itemFit = 'stretch';
+        else if (isHeader || isProfile) itemFit = 'cover';
 
         drawItem(ctx, item.imgElement, drawX, drawY, drawW, drawH, rad, itemFit, individualBorder, bCol);
 
@@ -474,7 +545,23 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         <div className="opts-group">
           <div className="opts-title">THÔNG SỐ CANVAS TỔNG THỂ</div>
           <div className="opts-row">
-            <div className="cg"><label>Chiều Rộng (px)</label><input type="number" value={canvasW} min={400} max={8000} onChange={e => setCanvasW(Number(e.target.value) || 1920)} /></div>
+            <div className="cg">
+              <label>Kích thước</label>
+              <select onChange={e => {
+                const val = e.target.value;
+                if (!val) return;
+                const [w, h] = val.split('x').map(Number);
+                setCanvasW(w);
+                setCanvasH(h);
+              }}>
+                <option value="1920x1080">Full HD (1920x1080)</option>
+                <option value="2560x1440">2K (2560x1440)</option>
+                <option value="3840x2160">4K (3840x2160)</option>
+                <option value="1080x1920">Mobile (1080x1920)</option>
+              </select>
+            </div>
+            <div className="cg"><label>W</label><input type="number" value={canvasW} onChange={e => setCanvasW(Number(e.target.value) || 1920)} /></div>
+            <div className="cg"><label>H</label><input type="number" value={canvasH} onChange={e => setCanvasH(Number(e.target.value) || 1080)} /></div>
             <div className="cg"><label>Thưa giữa các Phần</label><input type="number" value={gap} min={0} max={100} onChange={e => setGap(Number(e.target.value) || 0)} /></div>
             <div className="cg"><label>Bo góc chung (px)</label><input type="number" value={rad} min={0} max={100} onChange={e => setRad(Number(e.target.value) || 0)} /></div>
             <div className="cg"><label>Viền mép ngoài ảnh</label><input type="number" value={pad} min={0} max={100} onChange={e => setPad(Number(e.target.value) || 0)} /></div>
