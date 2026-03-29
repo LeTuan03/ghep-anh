@@ -121,8 +121,8 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       const remainder = imgs.length % cols;
       if (remainder === 0) return [...imgs];
 
-      if (remainder < cols / 2) {
-        // Ít hơn 1 nửa: Bỏ luôn những ảnh thừa đó
+      if (remainder < cols / 2 && imgs.length > remainder) {
+        // Ít hơn 1 nửa VÀ không phải là toàn bộ ảnh: Bỏ những ảnh thừa
         return imgs.slice(0, imgs.length - remainder);
       } else {
         // Nhiều hơn hoặc bằng 1 nửa: Lấy tương ứng số ảnh ở đầu
@@ -172,8 +172,8 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     let skinPool = [...midSkins];
 
     if (hRowAsp > 0) {
-      if (hRowAsp < targetAspectPerRow * 0.5) {
-        // Less than 50% complete: Trim the trailing row
+      if (hRowAsp < targetAspectPerRow * 0.5 && header.length > trailingHeaderItems.length) {
+        // Less than 50% complete AND not the only row: Trim the trailing row
         finalHeader = header.slice(0, header.length - trailingHeaderItems.length);
         hRowAsp = 0;
       } else {
@@ -196,13 +196,29 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
     }
 
     // 3. Consolidated Body Balancing: Balance all grid-sharing sections as one sequence
-    const bodyPool = [
-      ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
+    const bodyItems = [
       ...midVIP.map(i => ({ ...i, section: 'midVIP' as SectionKey, cellType: 'vip' as const, gridCols: optimalCols })),
       ...midWheel.map(i => ({ ...i, section: 'midWheel' as SectionKey, cellType: 'wheel' as const, gridCols: optimalCols })),
       ...skinPool.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })),
       ...middle.map(i => ({ ...i, section: 'middle' as SectionKey, cellType: 'vip' as const, gridCols: optimalCols }))
     ];
+
+    let bodyPool: any[] = [];
+    if (sections.header.length === 0 && bodyItems.length > 0) {
+      // Nếu không có header, chèn profile vào sau hàng đầu tiên của phần thân
+      const firstRow = bodyItems.slice(0, optimalCols);
+      const remainingBody = bodyItems.slice(optimalCols);
+      bodyPool = [
+        ...firstRow,
+        ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
+        ...remainingBody
+      ];
+    } else {
+      bodyPool = [
+        ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
+        ...bodyItems
+      ];
+    }
 
     const balancedBody = balance(bodyPool, optimalCols, midSkins.length > 0 ? midSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })) : bodyPool);
     const bFooter = balance(footer, optimalCols, footer);
@@ -291,10 +307,6 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       }
     }
 
-    // Nếu không có ảnh phần header thì chuyển hàng đầu xuống hàng 2 và hàng 2 lên hàng đầu
-    if (sections.header.length === 0 && rows.length >= 2) {
-      [rows[0], rows[1]] = [rows[1], rows[0]];
-    }
 
     // Per-section balancing now handles trailing rows more precisely
 
