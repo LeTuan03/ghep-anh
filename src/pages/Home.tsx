@@ -291,6 +291,11 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       }
     }
 
+    // Nếu không có ảnh phần header thì chuyển hàng đầu xuống hàng 2 và hàng 2 lên hàng đầu
+    if (sections.header.length === 0 && rows.length >= 2) {
+      [rows[0], rows[1]] = [rows[1], rows[0]];
+    }
+
     // Per-section balancing now handles trailing rows more precisely
 
     let totalH = pad * 2;
