@@ -168,30 +168,11 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       }
     });
 
-    let fillerForHeader: ImageData[] = [];
     let skinPool = [...midSkins];
 
-    if (hRowAsp > 0) {
-      if (hRowAsp < targetAspectPerRow * 0.5 && header.length > trailingHeaderItems.length) {
-        // Less than 50% complete AND not the only row: Trim the trailing row
+    if (hRowAsp > 0 && header.length > trailingHeaderItems.length) {
+      if (hRowAsp < targetAspectPerRow * 0.75) {
         finalHeader = header.slice(0, header.length - trailingHeaderItems.length);
-        hRowAsp = 0;
-      } else {
-        // 50% or more: Fill the trailing row as before
-        let needed = targetAspectPerRow - hRowAsp;
-        while (needed > 0 && skinPool.length > 0) {
-          const s = skinPool.shift()!;
-          fillerForHeader.push(s);
-          needed -= getAsp(s.imgElement);
-        }
-        if (needed > 0 && finalHeader.length > 0) {
-          while (needed > 0) {
-            const h = finalHeader[0];
-            fillerForHeader.push(h);
-            needed -= getAsp(h.imgElement);
-            if (fillerForHeader.length > 40) break;
-          }
-        }
       }
     }
 
@@ -203,30 +184,59 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       ...middle.map(i => ({ ...i, section: 'middle' as SectionKey, cellType: 'vip' as const, gridCols: optimalCols }))
     ];
 
-    let bodyPool: any[] = [];
-    if (sections.header.length === 0 && bodyItems.length > 0) {
-      // Nếu không có header, chèn profile vào sau hàng đầu tiên của phần thân
-      const firstRow = bodyItems.slice(0, optimalCols);
-      const remainingBody = bodyItems.slice(optimalCols);
-      bodyPool = [
-        ...firstRow,
-        ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
-        ...remainingBody
-      ];
-    } else {
-      bodyPool = [
-        ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
-        ...bodyItems
-      ];
+    let neededBodyForHeader = 0;
+    if (finalHeader.length > 0 && bodyItems.length > 0) {
+       let currentAsp = 0;
+       const targetGridAspect = optimalCols * avgSkinAsp;
+       const simItems = [...finalHeader.map(h => getAsp(h.imgElement)), ...bodyItems.map(b => getAsp(b.imgElement))];
+       for (let i = 0; i < finalHeader.length; i++) {
+           currentAsp += simItems[i];
+           if (i === finalHeader.length - 1) {
+               let bIdx = 0;
+               while (bIdx < bodyItems.length) {
+                   const nextAsp = simItems[finalHeader.length + bIdx];
+                   const distNow = Math.abs(currentAsp - targetGridAspect);
+                   const distNext = Math.abs((currentAsp + nextAsp) - targetGridAspect);
+                   if (currentAsp >= targetGridAspect || distNext >= distNow) break;
+                   currentAsp += nextAsp;
+                   neededBodyForHeader++;
+                   bIdx++;
+               }
+           } else {
+               const nextAsp = simItems[i + 1];
+               const distNow = Math.abs(currentAsp - targetGridAspect);
+               const distNext = Math.abs((currentAsp + nextAsp) - targetGridAspect);
+               if (currentAsp >= targetGridAspect || distNext >= distNow) currentAsp = 0;
+           }
+       }
     }
 
-    const balancedBody = balance(bodyPool, optimalCols, midSkins.length > 0 ? midSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })) : bodyPool);
+    let balancedBody: any[] = [];
+    if (sections.header.length === 0 && bodyItems.length > 0) {
+      const gridItems = [
+        ...bodyItems.slice(0, optimalCols),
+        ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
+        ...bodyItems.slice(optimalCols)
+      ];
+      const fillerSrc = midSkins.length > 0 ? midSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })) : gridItems;
+      balancedBody = balance(gridItems, optimalCols, fillerSrc);
+    } else {
+      const firstRowFitsInHeader = bodyItems.slice(0, neededBodyForHeader);
+      const gridItems = [
+        ...profile.map(i => ({ ...i, section: 'profile' as SectionKey, gridCols: optimalCols })),
+        ...bodyItems.slice(neededBodyForHeader)
+      ];
+      const fillerSrc = midSkins.length > 0 ? midSkins.map(i => ({ ...i, section: 'midSkins' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })) : gridItems;
+      balancedBody = [
+        ...firstRowFitsInHeader,
+        ...balance(gridItems, optimalCols, fillerSrc)
+      ];
+    }
     const bFooter = balance(footer, optimalCols, footer);
 
     // Re-build final list using the balanced body sequence
     const finalVAll: (ImageData & { section: SectionKey; gridCols: number })[] = [
       ...finalHeader.map(i => ({ ...i, section: 'header' as SectionKey, gridCols: 0 })),
-      ...fillerForHeader.map(i => ({ ...i, section: 'header' as SectionKey, cellType: 'skin' as const, gridCols: optimalCols })),
       ...balancedBody.map(i => ({ ...itemScale(i), section: (i as any).section, cellType: (i as any).cellType, gridCols: optimalCols })),
       ...bFooter.map(i => ({ ...itemScale(i), section: 'footer' as SectionKey, cellType: 'footer' as const, gridCols: optimalCols }))
     ].filter(i => i.imgElement);
@@ -254,20 +264,22 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
       const nextItem = finalVAll[i + 1];
       const nextSection = nextItem ? nextItem.section : null;
       const isGrid = item.gridCols > 0;
-      const isBody = nextSection && (nextSection === 'midVIP' || nextSection === 'midWheel' || nextSection === 'midSkins' || nextSection === 'middle');
+      const rowStartedAsGrid = currentItems.length > 0 ? currentItems[0].gridCols > 0 : isGrid;
       
+      // Allow Header and Body items to share rows seamlessly, only break naturally or if footer
       const mustBreak = nextItem && (
-        (item.section !== nextSection && !(item.section === 'profile' && isBody)) ||
-        (isGrid && currentItems.length >= item.gridCols)
+        (item.section === 'footer' || nextSection === 'footer' ? item.section !== nextSection : false) ||
+        (rowStartedAsGrid && currentItems.length >= item.gridCols)
       );
 
       // Advanced breaking logic for justified rows (header/profile)
       let shouldBreakNaturally = false;
-      if (!isLastOfAll && !mustBreak && !isGrid) {
+      if (!isLastOfAll && !mustBreak && !rowStartedAsGrid) {
         const nextAsp = getAsp(nextItem ? nextItem.imgElement : null);
-        const distNow = Math.abs(currentAspect - targetAspectPerRow);
-        const distNext = Math.abs((currentAspect + nextAsp) - targetAspectPerRow);
-        if (currentAspect >= targetAspectPerRow || distNext > distNow) {
+        const targetGridAspect = optimalCols * avgSkinAsp;
+        const distNow = Math.abs(currentAspect - targetGridAspect);
+        const distNext = Math.abs((currentAspect + nextAsp) - targetGridAspect);
+        if (currentAspect >= targetGridAspect || distNext >= distNow) {
           shouldBreakNaturally = true;
         }
       }
@@ -294,9 +306,23 @@ export default function Home({ onLogout }: { onLogout?: () => void }) {
         let rh = (contentW - rowTotalGap) / currentAspect;
         let isFullWidth = true;
 
-        // Still keep a small safeguard for extreme cases (e.g. 1 image in a huge row)
         const isGridRow = currentItems.length > 0 && currentItems[0].gridCols > 0;
-        if ((isGridRow || isLastOfAll) && rh > baseTargetH * 1.8) {
+        const isHeader = currentItems.length > 0 && currentItems[0].section === 'header';
+        const expectedGridH = (contentW - (optimalCols - 1) * innerPad) / (optimalCols * avgSkinAsp);
+
+        if (isHeader) {
+          // Bắt buộc chiều cao bằng các hàng Phần Giữa và full viền
+          rh = expectedGridH;
+          isFullWidth = true;
+          
+          const targetTotalAspect = (contentW - rowTotalGap) / rh;
+          const aspectMultiplier = targetTotalAspect / currentAspect;
+          
+          currentItems.forEach(it => {
+            it.aspect *= aspectMultiplier; // Tỷ lệ chia đều chuẩn xác toán học, giao lại ranh giới crop cho Cover
+          });
+        } else if ((isGridRow || isLastOfAll) && rh > baseTargetH * 1.8) {
+          // Safeguard for extreme cases
           rh = baseTargetH;
           isFullWidth = false;
         }
